@@ -1,3 +1,5 @@
+package com.alibaba.middleware.topkn;
+
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -18,7 +20,7 @@ public class TopknMaster implements Runnable {
         this.port = port;
     }
 
-    // port address of TopknWorker
+    // port address of com.alibaba.middleware.topkn.TopknWorker
     private int port;
 
     // 比赛输入
@@ -32,8 +34,17 @@ public class TopknMaster implements Runnable {
         this.startMasterThread(port);
     }
 
+    /**
+     * 初始化系统属性
+     */
+    private static void initProperties() {
+
+
+    }
+
     public static void main(String[] args) {
         logger.info("init some args....");
+        initProperties();
         // 获取比赛使用的k,n值
         k = Long.valueOf(args[0]);
         n = Integer.valueOf(args[1]);
