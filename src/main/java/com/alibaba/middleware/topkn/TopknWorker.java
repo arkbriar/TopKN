@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory;
  */
 public class TopknWorker {
 
-    private static final int masterPort = 5527;
+    private static int masterPort;
     private static String masterHostAddress;
     private final String dataDirPath = "/Users/wanshao/work/final_data";
     private Logger logger = LoggerFactory.getLogger(TopknWorker.class);
@@ -25,6 +25,8 @@ public class TopknWorker {
     public static void main(String[] args) throws Exception{
 
         masterHostAddress = args[0];
+        //需要通过args参数传递，master会开启5527和5528两个端口提供连接
+        masterPort = Integer.valueOf(args[1]);
         //支持重连
         while (true){
             try {
