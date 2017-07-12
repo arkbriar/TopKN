@@ -74,7 +74,7 @@
 
     <logger name="com.alibaba.middleware.topkn.TopknWorker" additivity="false">
         <level value="INFO"/>
-        <appender-ref ref="FILE_SERVER"/>
+        <appender-ref ref="FILE_CLIENT"/>
         <appender-ref ref="STDOUT"/>
     </logger>
 
