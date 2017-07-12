@@ -59,6 +59,10 @@ TopknMaster: 作为SocketServer监听5527和5528端口，接收TopknWorker的请
 TopknWorker: 作为SocketClient向服务端发起请求，获取k,n的值，并且在其中的processAndSendResult方法进行处理，并且将处理结果返回给服务端。
 worker已经设置成可以自动重连。
 
+DataGeneratorTopkn: 比赛生成随机数据的生成器，方便选手自己生成数据测试。生成的数据可以采用shell脚本利用split、sort来得到正确答案。
+
+
+
 
 
 
