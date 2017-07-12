@@ -1,6 +1,7 @@
 package com.alibaba.middleware.topkn;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
@@ -21,13 +22,23 @@ public class TopknWorker {
     private long k;
     private int n;
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws Exception{
 
         masterHostAddress = args[0];
-        new TopknWorker().connect(masterHostAddress, masterPort);
+        //支持重连
+        while (true){
+            try {
+                new TopknWorker().connect(masterHostAddress, masterPort);
+                return;
+            } catch (RuntimeException e) {
+                Thread.sleep(100);
+            }
+
+        }
+
     }
 
-    public void connect(String host, int port) {
+    public void connect(String host, int port) throws ConnectException{
         logger.info("begin to connect " + host + ":" + port);
         SocketChannel socketChannel = null;
         try {
@@ -41,10 +52,12 @@ public class TopknWorker {
             writeThread.start();
             writeThread.join();
             socketChannel.close();
+        } catch (ConnectException e) {
+            throw new RuntimeException(e);
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new RuntimeException(e);
         } catch (InterruptedException e) {
-            e.printStackTrace();
+            throw new RuntimeException(e);
         }
 
     }
