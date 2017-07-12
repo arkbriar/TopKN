@@ -130,6 +130,7 @@ public class TopknMaster implements Runnable {
          * @param readBuffer
          */
         private void processResult(ByteBuffer readBuffer) {
+            logger.info(new String(readBuffer.array()));
             System.out.println(new String(readBuffer.array()));
         }
     }
