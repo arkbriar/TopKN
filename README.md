@@ -117,13 +117,14 @@ PS:
 8. 校验程序将用户处理得到的5个结果文件和"标准答案"文件一一做MD5校验，如果全部一致，则认为算法正确，计算耗时并且统计排名。
 
 
+![pic](https://img.alicdn.com/tfs/TB1IYxgQXXXXXbaXVXXXXXXXXXX-360-307.png)
 
 
 PS:
 1. 调用选手的程序是通过脚本"java -cp $yourJarPath com.alibaba.middleware.race.TopknMaster $k $n" 这样的形式来调用的。
 该脚本会调用5次，当然每次的k,n都是随机的。JVM的启动和停止也会算在耗时里面请注意。
 2. 校验程序本身通过http请求通知worker机器上的校验程序启动选手的TopknWorker，因此本身也会有一些开销。如果像示例代码一样，master和worker基本都是
-什么都不做，跑完2次整个链路，约有5秒多的耗时。这个是测试几次的数据。
+什么都不做，跑完5次整个链路，约有9秒多的耗时。这个是测试几次的数据。
 
 
 # 9. 排名规则
