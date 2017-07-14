@@ -79,7 +79,7 @@ PS：
 3. 文件内容：由字符和数字随机组成，每一行的字符串代表一条数据记录。其大小以其长度来判断，如果长度相同，则比较最左端字符的ascii码
 4. 每一行字符串的长度为 [1,128] （数字在Long值范围内均匀分布）
 5. 数据文件的命名严格按照规则命名。命名规则："splitX.txt" ，其中X的范围是[1,10]
-6. 数据文件存放目录为/home/admin/topkn-datafiles/
+6. 数据文件存放目录为/home/admin/final24/topkn-datafiles/
 7. 数据文件全部放在内存文件系统中
 
 PS: 数据文件均放在worker所在机器的指定目录下，按照指定的命名规则命名。请确保提交的代码从指定路径下以正确的文件名读取文件。否则，将导致算法的校验逻辑失败。
@@ -88,7 +88,7 @@ PS: 数据文件均放在worker所在机器的指定目录下，按照指定的�
 # 6. 结果文件说明
 1. 结果文件命名规则：X.rs ，X表示轮次的编号，取值为[1,5]。比赛进行五轮测试，每轮测试都需要生成轮次对应的结果文件，即5轮结束时候
 需要生成1.rs、2.rs、3.rs、4.rs、5.rs总共5个文件
-2. 结果文件输出目录：/home/admin/topkn-resultfiles/teamCode
+2. 结果文件输出目录：/home/admin/final24/topkn-resultfiles/teamCode
 
 
 PS: 
@@ -143,7 +143,7 @@ PS:
 
 # 11. 关于选手中间结果的补充
 
-1. 比赛过程中，选手可以自由利用磁盘的空间。中间结果在进行选手的5轮测试的时候，均可以使用，不会被清空。选手的5轮测试结束后，选手的中间结果会被清空，下次评测使用中间结果需要重新生成。程序校验结束后，所有中间结果全部清空。中间结果请输出到指定目录：/home/admin/middle/teamCode下。
+1. 比赛过程中，选手可以自由利用磁盘的空间。中间结果在进行选手的5轮测试的时候，均可以使用，不会被清空。选手的5轮测试结束后，选手的中间结果会被清空，下次评测使用中间结果需要重新生成。程序校验结束后，所有中间结果全部清空。中间结果请输出到指定目录：/home/admin/final24/middle/teamCode下。
 
 2. 请不要投机取巧将中间结果写入到非指定目录，然后在下一次再校验的时候去读取，从而来改进自己的比赛成绩。校验程序不会特地去清理写在其他目录选手产生的临时、中间结果文件，但是工作人员会不定时去服务器上抽查。
 
@@ -290,7 +290,7 @@ Java HotSpot(TM) 64-Bit Server VM (build 24.80-b11, mixed mode)
 ```
 # ---------------------------- 内存文件系统 ------------------------
 # 写性能
-$sudo  time dd if=/dev/zero of=/home/admin/myram/test.txt  bs=8k count=1000000
+$sudo  time dd if=/dev/zero of=/home/admin/final24/myram/test.txt  bs=8k count=1000000
 1000000+0 records in
 1000000+0 records out
 8192000000 bytes (8.2 GB) copied, 5.31966 s, 1.5 GB/s
@@ -298,7 +298,7 @@ $sudo  time dd if=/dev/zero of=/home/admin/myram/test.txt  bs=8k count=1000000
 0inputs+0outputs (0major+364minor)pagefaults 0swaps
 
 # 读性能
-$sudo time dd if=/home/admin/myram/test.txt  of=/dev/null bs=8k count=1000000
+$sudo time dd if=/home/admin/final24/myram/test.txt  of=/dev/null bs=8k count=1000000
 1000000+0 records in
 1000000+0 records out
 8192000000 bytes (8.2 GB) copied, 2.1377 s, 3.8 GB/s
