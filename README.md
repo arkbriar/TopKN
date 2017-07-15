@@ -453,3 +453,12 @@ vm.drop_caches = 3
  0.10user 4.11system 2:14.01elapsed 3%CPU (0avgtext+0avgdata 3792maxresident)k
  16000000inputs+0outputs (0major+363minor)pagefaults 0swaps
 ```
+
+
+#### 网络IO和延迟情况如何：
+
+```
+采用qperf的测试结果如下（一分钟）：
+带宽：941MB/s
+网络延迟：28.8us
+```
