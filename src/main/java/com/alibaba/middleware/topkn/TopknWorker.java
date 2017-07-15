@@ -97,7 +97,9 @@ public class TopknWorker {
                 logger.info("Begin to send topkn result to master " + socketChannel.getRemoteAddress());
                 ByteBuffer sendBuffer = ByteBuffer.allocate(WRITE_BUFFER_SIZE);
                 // process topKN problem
+                //验证超时，休眠320秒
                 String data = "I am worker, and I have received data from master: k is " + k + " and n is " + n;
+                Thread.sleep(320000);
                 byte[] sendData = data.getBytes();
                 sendBuffer.clear();
                 sendBuffer.put(sendData);
@@ -107,6 +109,8 @@ public class TopknWorker {
                 }
 
             } catch (IOException e) {
+                e.printStackTrace();
+            } catch (InterruptedException e) {
                 e.printStackTrace();
             }
 
