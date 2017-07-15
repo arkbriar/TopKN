@@ -169,7 +169,7 @@ PS：
     - 选手可以使用样例工程中的日志框架，注意改成自己的teamCode
     - 日志命名严格按照样例工程中logback.xml中的配置
 3. 如何获取自己运行的日志：
-    - 选手可以通过地址：http://middle2017.oss-cn-shanghai.aliyuncs.com/${teamCode}/server.log.tar.gz或者client.log.tar.gz来获取日志
+    - 选手可以通过地址：http://middle2017.oss-cn-shanghai.aliyuncs.com/${teamCode}/server.log.tar.gz或者client_1.log.tar.gz和client_2.log.tar.gz来获取日志
     - 以上打包了运行期间的tsar信息、gc日志和评测日志。另外由于技术实现原因，TopknMaster端不提供gc日志。
 
 
