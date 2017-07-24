@@ -8,7 +8,6 @@ import java.util.List;
  * Created by Shunjie Ding on 24/07/2017.
  */
 public class MergeSorter {
-
     private Comparator<String> comparator;
 
     public MergeSorter(Comparator<String> comparator) {

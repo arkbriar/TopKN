@@ -31,7 +31,8 @@ import java.util.concurrent.TimeUnit;
  * Created by Shunjie Ding on 24/07/2017.
  */
 public class BucketSorter {
-    public static final int BUCKET_LIMIT = 5000;
+    public static final int BUCKET_LIMIT = 600;
+
     private static final Logger logger = LoggerFactory.getLogger(BucketSorter.class);
     private static final char[] CHARACTERS = "0123456789abcdefghijklmnopqrstuvwxyz".toCharArray();
     private final Semaphore available = new Semaphore(14700000, true);
@@ -58,10 +59,9 @@ public class BucketSorter {
                 new HashMap<Character, BufferedBucket>();
             buckets.put(i, characterBucketMap);
             for (char c : CHARACTERS) {
-                BufferedBucket
-                    bucket = new BufferedBucket(i, c, getBucketUnsortedBlock(i, c), BUCKET_LIMIT);
-                characterBucketMap
-                    .put(c, bucket);
+                BufferedBucket bucket =
+                    new BufferedBucket(i, c, getBucketUnsortedBlock(i, c), BUCKET_LIMIT);
+                characterBucketMap.put(c, bucket);
                 bucketList.add(bucket);
             }
         }
@@ -102,7 +102,21 @@ public class BucketSorter {
         }
     }
 
-    public void sort() {
+    public void coarseGrainedSort() {
+        createStoreDirectories();
+
+        logger.info("Begin sort!");
+
+        mapIntoBuckets();
+
+        logger.info("Unsorted buckets' ready!");
+
+        persistentDataIndex();
+
+        logger.info("Index file's written!");
+    }
+
+    public void fineGrainedSort() {
         createStoreDirectories();
 
         logger.info("Begin sort!");
@@ -138,10 +152,10 @@ public class BucketSorter {
 
         // start all consumers
         for (int i = 0; i < 128; ++i) {
-            queues.add(new ArrayBlockingQueue<String>(10000));
+            queues.add(new ArrayBlockingQueue<String>(21600));
         }
         for (int i = 0; i < 128; ++i) {
-            consumerService.submit(new LineBucketMapper(queues.get(i), buckets.get(i + 1)));
+            consumerService.submit(new LineBucketMapper(i, queues.get(i), buckets.get(i + 1)));
         }
 
         // start all producers
@@ -150,7 +164,11 @@ public class BucketSorter {
         }
 
         try {
+            producerService.shutdown();
             producerService.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
+
+            logger.info("All producers' are done!");
+
             producerService.shutdown();
             while (true) {
                 boolean allEmpty = true;
@@ -160,8 +178,13 @@ public class BucketSorter {
                         break;
                     }
                 }
-                if (allEmpty) { break; } else { Thread.sleep(100); }
+                if (allEmpty) {
+                    break;
+                } else {
+                    Thread.sleep(1000);
+                }
             }
+            logger.info("All lines' are consumed!");
             consumerService.shutdownNow();
         } catch (InterruptedException e) {
             e.printStackTrace();
@@ -184,16 +207,15 @@ public class BucketSorter {
             }
         }
 
+        executorService.shutdown();
         try {
             executorService.awaitTermination(200, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-        executorService.shutdown();
     }
 
     private class FileSplitLineReader implements Runnable {
-
         List<BlockingQueue<String>> queues;
 
         String fileSplit;
@@ -216,9 +238,15 @@ public class BucketSorter {
                 BufferedReader reader = new BufferedReader(streamReader);
 
                 String line;
+                int count = 0;
                 while ((line = reader.readLine()) != null) {
                     queues.get(line.length() - 1).put(line);
+                    if ((++ count) % 4000000 == 0) {
+                        logger.info(count + " lines in " + filePath + " are emitted!");
+                    }
                 }
+
+                logger.info("All lines in " + filePath + " are emitted!");
             } catch (FileNotFoundException e) {
                 e.printStackTrace();
             } catch (IOException e) {
@@ -230,41 +258,36 @@ public class BucketSorter {
     }
 
     private class LineBucketMapper implements Runnable {
+        private int name;
+
         private BlockingQueue<String> queue;
 
         private Map<Character, BufferedBucket> buckets;
 
         public LineBucketMapper(
-            BlockingQueue<String> queue,
-            Map<Character, BufferedBucket> buckets) {
+            int name, BlockingQueue<String> queue, Map<Character, BufferedBucket> buckets) {
+            this.name = name;
             this.queue = queue;
             this.buckets = buckets;
         }
 
         @Override
         public void run() {
-            int count = 0;
-            while (true) {
-                try {
+            try {
+                while (true) {
                     String line = queue.take();
                     char leadingCharacter = line.charAt(0);
 
                     BufferedBucket bucket = buckets.get(leadingCharacter);
                     bucket.add(line);
-
-                    count++;
-                    if (count % 1000000 == 0) {
-                        logger.info(count + " lines is mapped!");
-                    }
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
                 }
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
         }
     }
 
     private class BucketSortThread implements Runnable {
-
         private BufferedBucket bucket;
 
         public BucketSortThread(BufferedBucket bucket) {
@@ -277,12 +300,14 @@ public class BucketSorter {
         }
 
         void sortInBuckets(BufferedBucket bucket) {
-            if (bucket.getPersistenceLimit() != BufferedBucket.UNLIMITED &&
-                bucket.getSize() > bucket.getPersistenceLimit()) {
+            if (bucket.getPersistenceLimit() != BufferedBucket.UNLIMITED
+                && bucket.getSize() > bucket.getPersistenceLimit()) {
                 BucketUtils.restoreBucketData(bucket, bucket.getBlockFile());
             }
 
-            Collections.sort(bucket.getData(), StringComparator.getSingle());
+            if (bucket.getStrLen() != 1) {
+                Collections.sort(bucket.getData(), StringComparator.getSingle());
+            }
 
             // flush to disk and free memory
             bucket.flushToDisk(getBucketSortedBlock(bucket));

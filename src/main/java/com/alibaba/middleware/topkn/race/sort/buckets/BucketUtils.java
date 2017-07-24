@@ -14,7 +14,6 @@ import java.util.List;
  * Created by Shunjie Ding on 24/07/2017.
  */
 public class BucketUtils {
-
     public static void FlushToDisk(final List<String> strings, String filePath) throws IOException {
         Path destFilePath = Paths.get(filePath);
         Files.createDirectories(destFilePath.getParent());
@@ -50,7 +49,5 @@ public class BucketUtils {
         return new BufferedBucket(meta, BufferedBucket.UNLIMITED);
     }
 
-    public static void restoreBucketData(BufferedBucket bucket, String blockFile) {
-
-    }
+    public static void restoreBucketData(BufferedBucket bucket, String blockFile) {}
 }

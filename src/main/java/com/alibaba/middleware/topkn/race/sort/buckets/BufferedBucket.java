@@ -26,7 +26,8 @@ public class BufferedBucket {
         this.data = new ArrayList<>(persistenceLimit);
     }
 
-    public BufferedBucket(int strLen, char leadingCharacter, String blockFile, int persistenceLimit) {
+    public BufferedBucket(
+        int strLen, char leadingCharacter, String blockFile, int persistenceLimit) {
         this(new BucketMeta(strLen, leadingCharacter, blockFile), persistenceLimit);
     }
 
@@ -41,35 +42,16 @@ public class BufferedBucket {
     synchronized public void add(String s) {
         meta.increaseSizeByOne();
 
+        // Bucket with length 1 and leading character has no need to
+        // actually add it.
+        if (getStrLen() == 1) return;
+
         if (persistenceLimit != UNLIMITED && data.size() == persistenceLimit) {
             flushToDiskAndClear();
         }
 
         data.add(s);
-
-        // if (getStart().isEmpty() || comparator.compare(s, getStart()) < 0) {
-        //     setStart(s);
-        // }
-        // if (getEnd().isEmpty() || comparator.compare(s, getEnd()) > 0) {
-        //     setEnd(s);
-        // }
     }
-
-    // private String getStart() {
-    //     return meta.getStart();
-    // }
-    //
-    // private void setStart(String start) {
-    //     meta.setStart(start);
-    // }
-    //
-    // private String getEnd() {
-    //     return meta.getEnd();
-    // }
-    //
-    // private void setEnd(String end) {
-    //     meta.setEnd(end);
-    // }
 
     public int getStrLen() {
         return meta.getStrLen();

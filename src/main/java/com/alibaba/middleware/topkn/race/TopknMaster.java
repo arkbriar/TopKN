@@ -12,10 +12,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * TopknMaster负责接收题目给定的k,n值，并且将信息发送给TopknWorker1和TopknWorker2 Created by wanshao on 2017/6/29.
+ * TopknMaster负责接收题目给定的k,n值，并且将信息发送给TopknWorker1和TopknWorker2 Created by wanshao
+ * on 2017/6/29.
  */
 public class TopknMaster implements Runnable {
-
     // 比赛输入
     private static long k;
     private static int n;
@@ -30,9 +30,7 @@ public class TopknMaster implements Runnable {
     /**
      * 初始化系统属性
      */
-    private static void initProperties() {
-
-    }
+    private static void initProperties() {}
 
     public static void main(String[] args) {
         logger.info("init some args....");
@@ -44,7 +42,6 @@ public class TopknMaster implements Runnable {
         ExecutorService executorService = Executors.newFixedThreadPool(2);
         executorService.submit(new TopknMaster(5527));
         executorService.submit(new TopknMaster(5528));
-
     }
 
     @Override
@@ -59,7 +56,6 @@ public class TopknMaster implements Runnable {
     private void startMasterThread(int port) {
         ServerSocketChannel serverSocket = null;
         try {
-
             serverSocket = ServerSocketChannel.open();
             serverSocket.bind(new InetSocketAddress(port));
             logger.info("Port 5527 and 5528 is open for connecting...");
@@ -81,11 +77,9 @@ public class TopknMaster implements Runnable {
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
-
     }
 
     class MasterReadThread implements Runnable {
-
         private final Logger logger = LoggerFactory.getLogger(MasterReadThread.class);
         private final int READ_BUFFER_SIZE = 1024;
         private SocketChannel socketChannel;
@@ -103,7 +97,6 @@ public class TopknMaster implements Runnable {
          * 获取worker的结果并且处理
          */
         private void getResultAndProcess() {
-
             try {
                 logger.info("Begin to read result from worker " + socketChannel.getRemoteAddress());
                 ByteBuffer readBuffer = ByteBuffer.allocate(READ_BUFFER_SIZE);
@@ -113,7 +106,6 @@ public class TopknMaster implements Runnable {
                     // do something with the result
                     processResult(readBuffer);
                     readBuffer.clear();
-
                 }
 
             } catch (IOException e) {
@@ -134,7 +126,6 @@ public class TopknMaster implements Runnable {
      * master可以使用该线程发送比赛数据给worker,并且读取处理结果
      */
     public class MasterWriteThread implements Runnable {
-
         private static final int WRITE_BUFFER_SIZE = 1024;
         private final Logger logger = LoggerFactory.getLogger(MasterWriteThread.class);
         private SocketChannel socketChannel;
@@ -146,7 +137,6 @@ public class TopknMaster implements Runnable {
         @Override
         public void run() {
             try {
-
                 logger.info("Begin to send input to worker " + socketChannel.getRemoteAddress());
                 ByteBuffer sendBuffer = ByteBuffer.allocate(WRITE_BUFFER_SIZE);
                 sendBuffer.clear();
@@ -162,7 +152,5 @@ public class TopknMaster implements Runnable {
                 e.printStackTrace();
             }
         }
-
     }
-
 }

@@ -12,7 +12,6 @@ import java.util.List;
  * Created by Shunjie Ding on 24/07/2017.
  */
 public class TopknMasterCore {
-
     public static List<List<BucketMeta>> topKN(DataIndex left, DataIndex right, int k, int n) {
         List<BucketMeta> leftMetas = left.getMetas(), rightMetas = right.getMetas();
 

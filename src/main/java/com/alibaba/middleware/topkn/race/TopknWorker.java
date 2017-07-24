@@ -10,10 +10,10 @@ import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 
 /**
- * Worker1会接收master提供的题目信息，并且得到计算结果后返回给master Created by wanshao on 2017/6/29.
+ * Worker1会接收master提供的题目信息，并且得到计算结果后返回给master Created by wanshao on
+ * 2017/6/29.
  */
 public class TopknWorker {
-
     private static int masterPort;
     private static String masterHostAddress;
     private final String dataDirPath = "/Users/wanshao/work/final_data";
@@ -23,7 +23,6 @@ public class TopknWorker {
     private int n;
 
     public static void main(String[] args) throws Exception {
-
         masterHostAddress = args[0];
         //需要通过args参数传递，master会开启5527和5528两个端口提供连接
         masterPort = Integer.valueOf(args[1]);
@@ -35,16 +34,15 @@ public class TopknWorker {
             } catch (RuntimeException e) {
                 Thread.sleep(100);
             }
-
         }
-
     }
 
     public void connect(String host, int port) throws ConnectException {
         logger.info("begin to connect " + host + ":" + port);
         SocketChannel socketChannel = null;
         try {
-            socketChannel = SocketChannel.open(new InetSocketAddress(masterHostAddress, masterPort));
+            socketChannel =
+                SocketChannel.open(new InetSocketAddress(masterHostAddress, masterPort));
             socketChannel.configureBlocking(true);
             logger.info("Connected to server: " + socketChannel);
             Thread readThread = new Thread(new WorkerReadThread(socketChannel));
@@ -61,11 +59,9 @@ public class TopknWorker {
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
-
     }
 
     class WorkerWriteThread implements Runnable {
-
         private static final int WRITE_BUFFER_SIZE = 1024;
         private SocketChannel socketChannel;
         private Logger logger = LoggerFactory.getLogger(WorkerReadThread.class);
@@ -88,17 +84,16 @@ public class TopknWorker {
          * 根据比赛输入来计算结果,并且发送结果给master
          */
         private void processAndSendResult(long k, int n) {
-
             logger.info("begin to process topKN problem");
 
             try {
-                logger
-                    .info("Begin to send topkn result to master " + socketChannel.getRemoteAddress());
+                logger.info(
+                    "Begin to send topkn result to master " + socketChannel.getRemoteAddress());
                 ByteBuffer sendBuffer = ByteBuffer.allocate(WRITE_BUFFER_SIZE);
                 // process topKN problem
                 //验证超时，休眠320秒
-                String data =
-                    "I am worker, and I have received data from master: k is " + k + " and n is " + n;
+                String data = "I am worker, and I have received data from master: k is " + k
+                    + " and n is " + n;
                 Thread.sleep(320000);
                 byte[] sendData = data.getBytes();
                 sendBuffer.clear();
@@ -113,7 +108,6 @@ public class TopknWorker {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-
         }
     }
 
@@ -121,7 +115,6 @@ public class TopknWorker {
      * worker可以使用该线程发送处理后的结果给worker Created by wanshao on 2017/7/8 0008.
      */
     class WorkerReadThread implements Runnable {
-
         private static final int READ_BUFFER_SIZE = 1024 * 1024;
         private SocketChannel socketChannel;
         private Logger logger = LoggerFactory.getLogger(WorkerReadThread.class);
@@ -132,10 +125,9 @@ public class TopknWorker {
 
         @Override
         public void run() {
-
             try {
-                logger
-                    .info("Begin to read input data from master " + socketChannel.getRemoteAddress());
+                logger.info(
+                    "Begin to read input data from master " + socketChannel.getRemoteAddress());
                 ByteBuffer readBuffer = ByteBuffer.allocate(READ_BUFFER_SIZE);
                 readBuffer.clear();
                 int readBytes = socketChannel.read(readBuffer);
@@ -153,8 +145,6 @@ public class TopknWorker {
             } catch (IOException e) {
                 e.printStackTrace();
             }
-
         }
-
     }
 }

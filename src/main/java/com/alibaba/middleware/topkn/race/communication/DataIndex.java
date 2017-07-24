@@ -10,12 +10,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-
 /**
  * Created by Shunjie Ding on 24/07/2017.
  */
 public class DataIndex {
-
     private List<BucketMeta> metas = new ArrayList<>(128 * 36);
 
     public DataIndex(Map<Integer, Map<Character, BufferedBucket>> buckets) {
@@ -50,7 +48,9 @@ public class DataIndex {
     public void flushToDisk(String filePath) throws IOException {
         ObjectMapper mapper = new ObjectMapper();
         File file = new File(filePath);
-        if (!file.exists()) { file.createNewFile(); }
+        if (!file.exists()) {
+            file.createNewFile();
+        }
         mapper.writeValue(file, this);
     }
 }
