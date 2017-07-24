@@ -42,16 +42,21 @@ public class BufferedBucket {
     synchronized public void add(String s) {
         meta.increaseSizeByOne();
 
-        // // Bucket with length 1 and leading character has no need to
-        // // actually add it.
-        // if (getStrLen() == 1)
-        //     return;
-        //
-        // if (persistenceLimit != UNLIMITED && data.size() == persistenceLimit) {
-        //     flushToDiskAndClear();
-        // }
-        //
-        // data.add(s);
+        // Bucket with length 1 and leading character has no need to
+        // actually add it.
+        if (getStrLen() == 1) {
+            return;
+        }
+
+        if (persistenceLimit != UNLIMITED && data.size() == persistenceLimit) {
+            flushToDiskAndClear();
+        }
+
+        data.add(s);
+    }
+
+    synchronized public void increaseSize() {
+        meta.increaseSizeByOne();
     }
 
     public int getStrLen() {
@@ -83,11 +88,11 @@ public class BufferedBucket {
     }
 
     public void flushToDisk(String filePath) {
-        // try {
-        //     BucketUtils.FlushToDisk(data, filePath);
-        // } catch (IOException e) {
-        //     e.printStackTrace();
-        // }
+        try {
+            BucketUtils.FlushToDisk(data, filePath);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     private void flushToDiskAndClear() {

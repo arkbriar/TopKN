@@ -38,9 +38,11 @@ public class DataIndex {
     public List<BucketMeta> getMetasFromIndexWithAtLeastSize(int i, int n) {
         List<BucketMeta> res = new ArrayList<>();
         while (n > 0) {
-            BucketMeta meta = metas.get(i);
-            res.add(meta);
-            n -= meta.getSize();
+            BucketMeta meta = metas.get(i++);
+            if (meta.getSize() != 0) {
+                res.add(meta);
+                n -= meta.getSize();
+            }
         }
         return res;
     }

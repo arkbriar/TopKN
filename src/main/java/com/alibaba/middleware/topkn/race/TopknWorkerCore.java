@@ -1,6 +1,8 @@
 package com.alibaba.middleware.topkn.race;
 
+import com.alibaba.middleware.topkn.race.communication.DataIndex;
 import com.alibaba.middleware.topkn.race.sort.BucketSorter;
+import com.alibaba.middleware.topkn.race.sort.buckets.BucketMeta;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,11 +19,13 @@ public class TopknWorkerCore {
 
     protected TopknWorkerCore() {}
 
-    public static void coarseGrainedSort(String dataDirPath, String storeDir) {
+    public static DataIndex coarseGrainedSort(String dataDirPath, String storeDir) {
         List<String> dataSplits = listTextFilesInDir(dataDirPath);
         BucketSorter sorter = new BucketSorter(storeDir, dataSplits);
 
         sorter.coarseGrainedSortInParallel();
+
+        return sorter.getIndex();
     }
 
     private static List<String> listTextFilesInDir(String dir) {
@@ -44,6 +48,43 @@ public class TopknWorkerCore {
         }
 
         return files;
+    }
+
+    public static DataIndex readDataIndex(File indexFile) {
+        // TODO
+        return null;
+    }
+
+    public static void run(String dataDirPath, String storeDirPath, int n) {
+        DataIndex index = readDataIndex(new File(storeDirPath + "/index.json"));
+        if (index == null)
+            index = coarseGrainedSort(dataDirPath, storeDirPath);
+
+        pushDataIndexToMaster(index);
+
+        List<BucketMeta> metas = readBucketMetas();
+
+        List<String> strings = getBlocks(metas, n);
+
+        pushBlocks(strings);
+    }
+
+    private static List<BucketMeta> readBucketMetas() {
+        // TODO
+        return null;
+    }
+
+    private static void pushDataIndexToMaster(DataIndex index) {
+        // TODO
+    }
+
+    private static List<String> getBlocks(List<BucketMeta> metas, int n) {
+        // TODO
+        return null;
+    }
+
+    public static void pushBlocks(List<String> strings) {
+        // TODO
     }
 
     public static void main(String[] args) {

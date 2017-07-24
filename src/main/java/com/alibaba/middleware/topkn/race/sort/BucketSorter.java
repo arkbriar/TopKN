@@ -20,8 +20,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
@@ -31,7 +29,7 @@ import java.util.concurrent.TimeUnit;
  * Created by Shunjie Ding on 24/07/2017.
  */
 public class BucketSorter {
-    public static final int BUCKET_LIMIT = 600;
+    public static final int BUCKET_LIMIT = 100;
 
     private static final Logger logger = LoggerFactory.getLogger(BucketSorter.class);
     private static final char[] CHARACTERS = "0123456789abcdefghijklmnopqrstuvwxyz".toCharArray();
@@ -121,7 +119,7 @@ public class BucketSorter {
 
         logger.info("Begin sort!");
 
-        mapIntoBucketsInParallelUsingProducerConsumerModel();
+        mapIntoBucketsInParallelWithPersistence();
 
         logger.info("Unsorted buckets' ready!");
 
@@ -135,7 +133,7 @@ public class BucketSorter {
 
         logger.info("Begin sort!");
 
-        mapIntoBucketsInParallelUsingProducerConsumerModel();
+        mapIntoBucketsInParallelWithPersistence();
 
         logger.info("Unsorted buckets' ready!");
 
@@ -148,14 +146,21 @@ public class BucketSorter {
         logger.info("Index file's written!");
     }
 
+    private DataIndex index;
+
     private void persistentDataIndex() {
-        DataIndex index = new DataIndex(buckets);
+        if (index == null)
+            index = new DataIndex(buckets);
 
         try {
             index.flushToDisk(getIndexFile());
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public DataIndex getIndex() {
+        return index;
     }
 
     private void mapIntoBucketsInParallel() {
@@ -171,52 +176,23 @@ public class BucketSorter {
         }
     }
 
-    private void mapIntoBucketsInParallelUsingProducerConsumerModel() {
-        ExecutorService producerService = Executors.newFixedThreadPool(5);
-        ExecutorService consumerService = Executors.newFixedThreadPool(128);
+    private void mapIntoBucketsInParallelWithPersistence() {
+        ExecutorService mapperService = Executors.newFixedThreadPool(5);
 
-        List<BlockingQueue<String>> queues = new ArrayList<>(128);
-
-        // start all consumers
-        for (int i = 0; i < 128; ++i) {
-            queues.add(new ArrayBlockingQueue<String>(21600));
-        }
-        for (int i = 0; i < 128; ++i) {
-            consumerService.submit(new LineBucketMapper(i, queues.get(i), buckets.get(i + 1)));
-        }
-
-        // start all producers
         for (String fileSplit : fileSplits) {
-            producerService.submit(new FileSplitLineProducer(queues, fileSplit));
+            mapperService.submit(new FileSplitLineReaderWithPersistence(fileSplit));
         }
-
+        mapperService.shutdown();
         try {
-            producerService.shutdown();
-            producerService.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
-
-            logger.info("All producers' are done!");
-
-            producerService.shutdown();
-            while (true) {
-                boolean allEmpty = true;
-                for (int i = 0; i < 128; ++i) {
-                    if (!queues.get(i).isEmpty()) {
-                        allEmpty = false;
-                        break;
-                    }
-                }
-                if (allEmpty) {
-                    break;
-                } else {
-                    Thread.sleep(1000);
-                }
-            }
-            logger.info("All lines' are consumed!");
-            consumerService.shutdownNow();
+            mapperService.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
 
+        flushAllBuckets();
+    }
+
+    private void flushAllBuckets() {
         for (BufferedBucket bucket : bucketList) {
             bucket.flushToDisk();
         }
@@ -250,7 +226,7 @@ public class BucketSorter {
         }
 
         protected void processLine(String line) {
-            buckets.get(line.length()).get(line.charAt(0)).add(line);
+            buckets.get(line.length()).get(line.charAt(0)).increaseSize();
         }
 
         private void mapIntoBuckets(String filePath) {
@@ -283,53 +259,16 @@ public class BucketSorter {
         }
     }
 
-    private class FileSplitLineProducer extends FileSplitLineReader {
-        List<BlockingQueue<String>> queues;
-
+    private class FileSplitLineReaderWithPersistence extends FileSplitLineReader {
         String fileSplit;
 
-        public FileSplitLineProducer(List<BlockingQueue<String>> queues, String fileSplit) {
+        public FileSplitLineReaderWithPersistence(String fileSplit) {
             super(fileSplit);
-            this.queues = queues;
         }
 
         @Override
         protected void processLine(String line) {
-            try {
-                queues.get(line.length() - 1).put(line);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-    }
-
-    private class LineBucketMapper implements Runnable {
-        private int name;
-
-        private BlockingQueue<String> queue;
-
-        private Map<Character, BufferedBucket> buckets;
-
-        public LineBucketMapper(
-            int name, BlockingQueue<String> queue, Map<Character, BufferedBucket> buckets) {
-            this.name = name;
-            this.queue = queue;
-            this.buckets = buckets;
-        }
-
-        @Override
-        public void run() {
-            try {
-                while (true) {
-                    String line = queue.take();
-                    char leadingCharacter = line.charAt(0);
-
-                    BufferedBucket bucket = buckets.get(leadingCharacter);
-                    bucket.add(line);
-                }
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+            buckets.get(line.length()).get(line.charAt(0)).add(line);
         }
     }
 

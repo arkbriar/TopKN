@@ -14,11 +14,11 @@ public class MergeSorter {
         this.comparator = comparator;
     }
 
-    public List<String> merge(List<String> lhs, List<String> rhs) {
+    public List<String> merge(List<String> lhs, List<String> rhs, int n) {
         int i = 0, j = 0;
         List<String> res = new ArrayList<>(lhs.size() + rhs.size());
 
-        while (i < lhs.size() || j < rhs.size()) {
+        while (i < lhs.size() || j < rhs.size() && res.size() < n) {
             if (i >= lhs.size()) {
                 res.add(rhs.get(j++));
             } else if (j >= rhs.size()) {
