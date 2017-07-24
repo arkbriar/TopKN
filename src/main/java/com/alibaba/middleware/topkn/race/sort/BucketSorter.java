@@ -102,12 +102,12 @@ public class BucketSorter {
         }
     }
 
-    public void coarseGrainedSort() {
+    public void coarseGrainedSortInParallel() {
         createStoreDirectories();
 
         logger.info("Begin sort!");
 
-        mapIntoBuckets();
+        mapIntoBucketsInParallel();
 
         logger.info("Unsorted buckets' ready!");
 
@@ -116,12 +116,26 @@ public class BucketSorter {
         logger.info("Index file's written!");
     }
 
-    public void fineGrainedSort() {
+    public void coarseGrainedSortInParallelWithBlockPersistence() {
         createStoreDirectories();
 
         logger.info("Begin sort!");
 
-        mapIntoBuckets();
+        mapIntoBucketsInParallelUsingProducerConsumerModel();
+
+        logger.info("Unsorted buckets' ready!");
+
+        persistentDataIndex();
+
+        logger.info("Index file's written!");
+    }
+
+    public void fineGrainedSortInParallelWithBlockPersistence() {
+        createStoreDirectories();
+
+        logger.info("Begin sort!");
+
+        mapIntoBucketsInParallelUsingProducerConsumerModel();
 
         logger.info("Unsorted buckets' ready!");
 
@@ -144,7 +158,20 @@ public class BucketSorter {
         }
     }
 
-    private void mapIntoBuckets() {
+    private void mapIntoBucketsInParallel() {
+        ExecutorService mapperService = Executors.newFixedThreadPool(5);
+        for (String fileSplit : fileSplits) {
+            mapperService.submit(new FileSplitLineReader(fileSplit));
+        }
+        mapperService.shutdown();
+        try {
+            mapperService.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void mapIntoBucketsInParallelUsingProducerConsumerModel() {
         ExecutorService producerService = Executors.newFixedThreadPool(5);
         ExecutorService consumerService = Executors.newFixedThreadPool(128);
 
@@ -160,7 +187,7 @@ public class BucketSorter {
 
         // start all producers
         for (String fileSplit : fileSplits) {
-            producerService.submit(new FileSplitLineReader(queues, fileSplit));
+            producerService.submit(new FileSplitLineProducer(queues, fileSplit));
         }
 
         try {
@@ -216,19 +243,14 @@ public class BucketSorter {
     }
 
     private class FileSplitLineReader implements Runnable {
-        List<BlockingQueue<String>> queues;
-
         String fileSplit;
 
-        public FileSplitLineReader(List<BlockingQueue<String>> queues, String fileSplit) {
-            this.queues = queues;
+        public FileSplitLineReader(String fileSplit) {
             this.fileSplit = fileSplit;
         }
 
-        @Override
-        public void run() {
-            logger.info("Mapping split " + fileSplit + " to buckets.");
-            mapIntoBuckets(fileSplit);
+        protected void processLine(String line) {
+            buckets.get(line.length()).get(line.charAt(0)).add(line);
         }
 
         private void mapIntoBuckets(String filePath) {
@@ -240,7 +262,7 @@ public class BucketSorter {
                 String line;
                 int count = 0;
                 while ((line = reader.readLine()) != null) {
-                    queues.get(line.length() - 1).put(line);
+                    processLine(line);
                     if ((++count) % 4000000 == 0) {
                         logger.info(count + " lines in " + filePath + " are emitted!");
                     }
@@ -251,6 +273,30 @@ public class BucketSorter {
                 e.printStackTrace();
             } catch (IOException e) {
                 e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void run() {
+            logger.info("Mapping split " + fileSplit + " to buckets.");
+            mapIntoBuckets(fileSplit);
+        }
+    }
+
+    private class FileSplitLineProducer extends FileSplitLineReader {
+        List<BlockingQueue<String>> queues;
+
+        String fileSplit;
+
+        public FileSplitLineProducer(List<BlockingQueue<String>> queues, String fileSplit) {
+            super(fileSplit);
+            this.queues = queues;
+        }
+
+        @Override
+        protected void processLine(String line) {
+            try {
+                queues.get(line.length() - 1).put(line);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }

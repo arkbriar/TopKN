@@ -21,7 +21,7 @@ public class TopknWorkerCore {
         List<String> dataSplits = listTextFilesInDir(dataDirPath);
         BucketSorter sorter = new BucketSorter(storeDir, dataSplits);
 
-        sorter.coarseGrainedSort();
+        sorter.coarseGrainedSortInParallel();
     }
 
     private static List<String> listTextFilesInDir(String dir) {
