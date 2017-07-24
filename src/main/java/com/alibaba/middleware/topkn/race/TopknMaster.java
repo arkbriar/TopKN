@@ -1,4 +1,7 @@
-package com.alibaba.middleware.topkn;
+package com.alibaba.middleware.topkn.race;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
@@ -8,37 +11,26 @@ import java.nio.channels.SocketChannel;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 /**
  * TopknMaster负责接收题目给定的k,n值，并且将信息发送给TopknWorker1和TopknWorker2 Created by wanshao on 2017/6/29.
  */
 public class TopknMaster implements Runnable {
 
-    public TopknMaster(int port){
-        this.port = port;
-    }
-
-    // port address of com.alibaba.middleware.topkn.TopknWorker
-    private int port;
-
     // 比赛输入
     private static long k;
     private static int n;
-
     private static Logger logger = LoggerFactory.getLogger(TopknMaster.class);
+    // port address of com.alibaba.middleware.topkn.TopknWorker
+    private int port;
 
-    @Override
-    public void run() {
-        this.startMasterThread(port);
+    public TopknMaster(int port) {
+        this.port = port;
     }
 
     /**
      * 初始化系统属性
      */
     private static void initProperties() {
-
 
     }
 
@@ -53,6 +45,11 @@ public class TopknMaster implements Runnable {
         executorService.submit(new TopknMaster(5527));
         executorService.submit(new TopknMaster(5528));
 
+    }
+
+    @Override
+    public void run() {
+        this.startMasterThread(port);
     }
 
     /**
@@ -93,7 +90,7 @@ public class TopknMaster implements Runnable {
         private final int READ_BUFFER_SIZE = 1024;
         private SocketChannel socketChannel;
 
-        public MasterReadThread(SocketChannel socketChannel){
+        public MasterReadThread(SocketChannel socketChannel) {
             this.socketChannel = socketChannel;
         }
 
@@ -126,8 +123,6 @@ public class TopknMaster implements Runnable {
 
         /**
          * 对结果数据做一些处理
-         *
-         * @param readBuffer
          */
         private void processResult(ByteBuffer readBuffer) {
             logger.info(new String(readBuffer.array()));
@@ -144,7 +139,7 @@ public class TopknMaster implements Runnable {
         private final Logger logger = LoggerFactory.getLogger(MasterWriteThread.class);
         private SocketChannel socketChannel;
 
-        public MasterWriteThread(SocketChannel socketChannel){
+        public MasterWriteThread(SocketChannel socketChannel) {
             this.socketChannel = socketChannel;
         }
 

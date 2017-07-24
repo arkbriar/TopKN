@@ -1,7 +1,9 @@
-package com.alibaba.middleware.topkn;
+package com.alibaba.middleware.topkn.generator;
 
 import java.math.BigInteger;
 import java.security.SecureRandom;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.google.common.primitives.Bytes;
 
@@ -10,16 +12,42 @@ import com.google.common.primitives.Bytes;
  * Created by wanshao on 2017/6/27.
  */
 public class DataGeneratorTopKN {
-    public static void main(String[] args) {
-        //1万行约628KB,实际写入大小为lineSize*round，这里round是为了分批处理，避免耗尽内存
-        int lineSize=10000; //10000
-        int round=16000;  //16000
-        for(int i=0;i<round;i++){
-            byte[] byteArray =  generateCharData(lineSize);
-            String filePath = "C:\\work\\topkn\\data\\data.txt";
-            FlushToDiskUtil.flushToDisk(byteArray,filePath);
+    public static void main(String[] args) throws InterruptedException {
+        List<String> filePaths = new ArrayList<>(10);
+        for (int i = 0; i < 10; ++ i) {
+            filePaths.add(String.format("data/split%d.txt", i + 1));
         }
 
+        List<Thread> threads = new ArrayList<>(10);
+        for (String filePath : filePaths) {
+            Thread thread = new Thread(new DataGenerator(filePath));
+            thread.start();
+            threads.add(thread);
+        }
+
+        for (Thread t : threads) {
+            t.join();
+        }
+    }
+
+    public static class DataGenerator implements Runnable {
+
+        private String filePath;
+
+        DataGenerator(String filePath) {
+            this.filePath = filePath;
+        }
+
+        @Override
+        public void run() {
+            //1万行约628KB,实际写入大小为lineSize*round，这里round是为了分批处理，避免耗尽内存
+            int lineSize=10000; //10000
+            int round=1600;  //16000
+            for(int i=0;i<round;i++){
+                byte[] byteArray =  generateCharData(lineSize);
+                FlushToDiskUtil.flushToDisk(byteArray,filePath);
+            }
+        }
     }
 
     /**

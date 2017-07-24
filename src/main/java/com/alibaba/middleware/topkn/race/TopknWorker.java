@@ -1,13 +1,13 @@
-package com.alibaba.middleware.topkn;
+package com.alibaba.middleware.topkn.race;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * Worker1会接收master提供的题目信息，并且得到计算结果后返回给master Created by wanshao on 2017/6/29.
@@ -22,13 +22,13 @@ public class TopknWorker {
     private long k;
     private int n;
 
-    public static void main(String[] args) throws Exception{
+    public static void main(String[] args) throws Exception {
 
         masterHostAddress = args[0];
         //需要通过args参数传递，master会开启5527和5528两个端口提供连接
         masterPort = Integer.valueOf(args[1]);
         //支持重连
-        while (true){
+        while (true) {
             try {
                 new TopknWorker().connect(masterHostAddress, masterPort);
                 return;
@@ -40,7 +40,7 @@ public class TopknWorker {
 
     }
 
-    public void connect(String host, int port) throws ConnectException{
+    public void connect(String host, int port) throws ConnectException {
         logger.info("begin to connect " + host + ":" + port);
         SocketChannel socketChannel = null;
         try {
@@ -73,7 +73,7 @@ public class TopknWorker {
         private long k;
         private int n;
 
-        public WorkerWriteThread(SocketChannel socketChannel, long k, int n){
+        public WorkerWriteThread(SocketChannel socketChannel, long k, int n) {
             this.socketChannel = socketChannel;
             this.k = k;
             this.n = n;
@@ -86,19 +86,19 @@ public class TopknWorker {
 
         /**
          * 根据比赛输入来计算结果,并且发送结果给master
-         *
-         * @return
          */
         private void processAndSendResult(long k, int n) {
 
             logger.info("begin to process topKN problem");
 
             try {
-                logger.info("Begin to send topkn result to master " + socketChannel.getRemoteAddress());
+                logger
+                    .info("Begin to send topkn result to master " + socketChannel.getRemoteAddress());
                 ByteBuffer sendBuffer = ByteBuffer.allocate(WRITE_BUFFER_SIZE);
                 // process topKN problem
                 //验证超时，休眠320秒
-                String data = "I am worker, and I have received data from master: k is " + k + " and n is " + n;
+                String data =
+                    "I am worker, and I have received data from master: k is " + k + " and n is " + n;
                 Thread.sleep(320000);
                 byte[] sendData = data.getBytes();
                 sendBuffer.clear();
@@ -126,7 +126,7 @@ public class TopknWorker {
         private SocketChannel socketChannel;
         private Logger logger = LoggerFactory.getLogger(WorkerReadThread.class);
 
-        public WorkerReadThread(SocketChannel socketChannel){
+        public WorkerReadThread(SocketChannel socketChannel) {
             this.socketChannel = socketChannel;
         }
 
@@ -134,7 +134,8 @@ public class TopknWorker {
         public void run() {
 
             try {
-                logger.info("Begin to read input data from master " + socketChannel.getRemoteAddress());
+                logger
+                    .info("Begin to read input data from master " + socketChannel.getRemoteAddress());
                 ByteBuffer readBuffer = ByteBuffer.allocate(READ_BUFFER_SIZE);
                 readBuffer.clear();
                 int readBytes = socketChannel.read(readBuffer);
@@ -147,7 +148,7 @@ public class TopknWorker {
                     logger.info("Receive input data, k is " + k + " and n is " + n);
                 }
 
-                logger.info("Reading intput data from master is finished...");
+                logger.info("Reading input data from master is finished...");
 
             } catch (IOException e) {
                 e.printStackTrace();

@@ -1,4 +1,4 @@
-package com.alibaba.middleware.topkn;
+package com.alibaba.middleware.topkn.generator;
 
 import java.io.File;
 import java.io.FileNotFoundException;
