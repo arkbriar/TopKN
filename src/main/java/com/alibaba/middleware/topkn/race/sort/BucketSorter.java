@@ -241,7 +241,7 @@ public class BucketSorter {
                 int count = 0;
                 while ((line = reader.readLine()) != null) {
                     queues.get(line.length() - 1).put(line);
-                    if ((++ count) % 4000000 == 0) {
+                    if ((++count) % 4000000 == 0) {
                         logger.info(count + " lines in " + filePath + " are emitted!");
                     }
                 }

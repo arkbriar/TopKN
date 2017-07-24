@@ -44,7 +44,8 @@ public class BufferedBucket {
 
         // Bucket with length 1 and leading character has no need to
         // actually add it.
-        if (getStrLen() == 1) return;
+        if (getStrLen() == 1)
+            return;
 
         if (persistenceLimit != UNLIMITED && data.size() == persistenceLimit) {
             flushToDiskAndClear();

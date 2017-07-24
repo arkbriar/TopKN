@@ -28,7 +28,6 @@ public class BucketMeta {
         return blockFile;
     }
 
-
     public char getLeadingCharacter() {
         return leadingCharacter;
     }
