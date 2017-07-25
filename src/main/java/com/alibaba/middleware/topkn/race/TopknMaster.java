@@ -1,21 +1,18 @@
 package com.alibaba.middleware.topkn.race;
 
-import com.google.common.primitives.Bytes;
-
 import com.alibaba.middleware.topkn.race.comm.BucketBlockReadRequest;
 import com.alibaba.middleware.topkn.race.comm.BucketBlockResult;
 import com.alibaba.middleware.topkn.race.sort.DataIndex;
 import com.alibaba.middleware.topkn.race.sort.MergeSorter;
 import com.alibaba.middleware.topkn.race.sort.buckets.BucketMeta;
-import com.alibaba.middleware.topkn.race.sort.buckets.BucketUtils;
 import com.alibaba.middleware.topkn.race.sort.comparator.StringComparator;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.alibaba.middleware.topkn.race.utils.FileUtils;
+import com.alibaba.middleware.topkn.race.utils.SocketUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
@@ -46,6 +43,8 @@ public class TopknMaster implements Runnable {
         k = Long.valueOf(args[0]);
         n = Integer.valueOf(args[1]);
 
+        logger.info("Top KN, k = " + k + ", n = " + n);
+
         TopknMaster master = new TopknMaster();
         master.run();
     }
@@ -69,20 +68,34 @@ public class TopknMaster implements Runnable {
             socketChannels[i] = futures.get(i).get();
         }
 
+        logger.info("All workers are connected.");
+
+        logger.info("Start reading data indices from workers...");
         List<Future<DataIndex>> dataIndicesFutures = readDataIndices();
         for (int i = 0; i < dataIndicesFutures.size(); ++i) {
             dataIndices[i] = dataIndicesFutures.get(i).get();
         }
 
+        logger.info("Data indices are all read! Start prepare block requests...");
+
         List<BucketBlockReadRequest> readRequests = findBlocksAndConstructBlockReadRequests(k, n);
+
+        logger.info("");
+
+        logger.info("Reading blocks...");
+
         List<BucketBlockResult> blockResults = readBlocks(readRequests);
+
+        logger.info("All blocks're read.");
 
         List<String> merged = new MergeSorter(StringComparator.getInstance())
             .merge(blockResults.get(0).getBlock(),
                 blockResults.get(1).getBlock(), kInMergedBlocks + n - 1);
         List<String> result = merged.subList(kInMergedBlocks - 1, kInMergedBlocks + n - 1);
 
-        BucketUtils.flushToDisk(result, resultFile);
+        logger.info("Writing result to file " + resultFile);
+
+        FileUtils.flushToDisk(result, resultFile);
     }
 
     private List<Future<SocketChannel>> startServerSocketsAndAcceptRequest() {
@@ -91,6 +104,7 @@ public class TopknMaster implements Runnable {
         for (int i = 0; i < 2; ++i) {
             futures.add(executorService.submit(new StartServerSocketTask(ports[i])));
         }
+        executorService.shutdown();
         return futures;
     }
 
@@ -100,6 +114,7 @@ public class TopknMaster implements Runnable {
         for (int i = 0; i < 2; ++i) {
             futures.add(executorService.submit(new ReadDataIndexTask(socketChannels[i])));
         }
+        executorService.shutdown();
         return futures;
     }
 
@@ -116,6 +131,7 @@ public class TopknMaster implements Runnable {
         for (Future<BucketBlockResult> future : futures) {
             blockResults.add(future.get());
         }
+        executorService.shutdown();
         return blockResults;
     }
 
@@ -128,16 +144,25 @@ public class TopknMaster implements Runnable {
             }
         }
         --blockIndexToRead;
+        for (DataIndex dataIndex : dataIndices) {
+            prevBlocksTotalSize -= dataIndex.getMetas().get(blockIndexToRead).getSize();
+        }
 
         kInMergedBlocks = (int) (k - prevBlocksTotalSize);
         long sizeToRead = k - prevBlocksTotalSize + n - 1;
+
+        logger.info("Block index to read is " + blockIndexToRead);
+        logger.info("Number k in merged blocks is " + kInMergedBlocks);
+        logger.info("Block size to read is " + sizeToRead);
 
         List<BucketBlockReadRequest> readRequests = new ArrayList<>(2);
         for (DataIndex dataIndex : dataIndices) {
             List<BucketMeta> bucketMetas =
                 dataIndex.getMetasFromIndexWithAtLeastSize(blockIndexToRead, sizeToRead);
+            logger.info("Buckets to read are " + bucketMetas.get(0));
             readRequests.add(new BucketBlockReadRequest((int) sizeToRead, bucketMetas));
         }
+
         return readRequests;
     }
 
@@ -156,7 +181,6 @@ public class TopknMaster implements Runnable {
             logger.info("Opening port " + port + " for connecting...");
 
             SocketChannel socketChannel = serverSocketChannel.accept();
-            socketChannel.configureBlocking(true);
 
             return socketChannel;
         }
@@ -171,17 +195,7 @@ public class TopknMaster implements Runnable {
 
         @Override
         public DataIndex call() throws Exception {
-            ByteBuffer buffer = ByteBuffer.allocate(1024 * 1024);
-
-            byte[] indexBytes = new byte[0];
-            while (socketChannel.read(buffer) != -1) {
-                buffer.flip();
-                indexBytes = Bytes.concat(indexBytes, buffer.array());
-                buffer.clear();
-            }
-
-            ObjectMapper mapper = new ObjectMapper();
-            return mapper.readValue(indexBytes, DataIndex.class);
+            return SocketUtils.read(socketChannel, DataIndex.class);
         }
     }
 
@@ -197,30 +211,11 @@ public class TopknMaster implements Runnable {
         }
 
         private void sendRequest(BucketBlockReadRequest readRequest) throws IOException {
-            ObjectMapper mapper = new ObjectMapper();
-            byte[] requestBytes = mapper.writeValueAsBytes(readRequest);
-
-            ByteBuffer buffer = ByteBuffer.allocate(requestBytes.length);
-            buffer.put(requestBytes);
-            buffer.flip();
-
-            while (buffer.hasRemaining()) {
-                socketChannel.write(buffer);
-            }
+            SocketUtils.write(socketChannel, readRequest);
         }
 
         private BucketBlockResult readResult() throws IOException {
-            ByteBuffer buffer = ByteBuffer.allocate(1024 * 1024);
-            byte[] blockBytes = new byte[0];
-
-            while (socketChannel.read(buffer) != -1) {
-                buffer.flip();
-                blockBytes = Bytes.concat(blockBytes, buffer.array());
-                buffer.clear();
-            }
-
-            ObjectMapper mapper = new ObjectMapper();
-            return mapper.readValue(blockBytes, BucketBlockResult.class);
+            return SocketUtils.read(socketChannel, BucketBlockResult.class);
         }
 
         @Override

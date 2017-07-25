@@ -18,7 +18,7 @@ public class MergeSorter {
         int i = 0, j = 0;
         List<String> res = new ArrayList<>(lhs.size() + rhs.size());
 
-        while (i < lhs.size() || j < rhs.size() && res.size() < n) {
+        while ((i < lhs.size() || j < rhs.size()) && res.size() < n) {
             if (i >= lhs.size()) {
                 res.add(rhs.get(j++));
             } else if (j >= rhs.size()) {

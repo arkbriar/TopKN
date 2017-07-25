@@ -16,7 +16,8 @@ import java.util.List;
 public class BucketUtils {
     public static void flushToDisk(final List<String> strings, String filePath) throws IOException {
         Path destFilePath = Paths.get(filePath);
-        Files.createDirectories(destFilePath.getParent());
+        Path parentPath = destFilePath.toAbsolutePath().getParent();
+        if (parentPath != null) { Files.createDirectories(parentPath); }
 
         File destFile = destFilePath.toFile();
         if (!destFile.exists()) {

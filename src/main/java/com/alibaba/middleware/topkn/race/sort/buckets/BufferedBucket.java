@@ -24,7 +24,11 @@ public class BufferedBucket {
         this.meta = meta;
 
         this.persistenceLimit = persistenceLimit;
-        this.data = new ArrayList<>(persistenceLimit);
+        if (persistenceLimit != UNLIMITED) {
+            this.data = new ArrayList<>(persistenceLimit);
+        } else {
+            this.data = new ArrayList<>();
+        }
     }
 
     public BufferedBucket(
@@ -42,12 +46,6 @@ public class BufferedBucket {
 
     synchronized public void add(String s) {
         meta.increaseSizeByOne();
-
-        // Bucket with length 1 and leading character has no need to
-        // actually add it.
-        if (getStrLen() == 1) {
-            return;
-        }
 
         if (persistenceLimit != UNLIMITED && data.size() == persistenceLimit) {
             flushToDiskAndClear();

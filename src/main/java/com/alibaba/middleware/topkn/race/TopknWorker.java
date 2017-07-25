@@ -1,7 +1,5 @@
 package com.alibaba.middleware.topkn.race;
 
-import com.google.common.primitives.Bytes;
-
 import com.alibaba.middleware.topkn.race.comm.BucketBlockReadRequest;
 import com.alibaba.middleware.topkn.race.comm.BucketBlockResult;
 import com.alibaba.middleware.topkn.race.sort.BucketSorter;
@@ -9,6 +7,7 @@ import com.alibaba.middleware.topkn.race.sort.DataIndex;
 import com.alibaba.middleware.topkn.race.sort.buckets.BucketMeta;
 import com.alibaba.middleware.topkn.race.sort.buckets.BufferedBucket;
 import com.alibaba.middleware.topkn.race.sort.comparator.StringComparator;
+import com.alibaba.middleware.topkn.race.utils.SocketUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,7 +20,6 @@ import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
-import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -54,6 +52,7 @@ public class TopknWorker implements Runnable {
                 TopknWorker worker = new TopknWorker();
                 worker.startWork();
             } catch (RuntimeException e) {
+                e.printStackTrace();
                 Thread.sleep(100);
             }
         }
@@ -91,18 +90,28 @@ public class TopknWorker implements Runnable {
     private void startWork() throws IOException {
         connect(masterHostAddress, masterPort);
 
-        DataIndex dataIndex = readDataIndex(new File(indexStorePath + "/index.json"));
         List<String> fileSplits = listTextFilesInDir(dataDirPath);
+
+        logger.info("Reading index file " + indexStorePath + "/index.json");
+
+        DataIndex dataIndex = readDataIndex(new File(indexStorePath + "/index.json"));
         if (dataIndex == null) {
+            logger.info("Index file not found, reconstructing...");
+
             dataIndex = coarseGrainedSort(fileSplits, indexStorePath);
         }
 
+        logger.info("Writing index to master...");
         writeDataIndexToMaster(dataIndex);
 
+        logger.info("Reading block reading request from master...");
         BucketBlockReadRequest readRequest = readBucketBlockReadRequestFromMaster();
 
+        logger.info("Reading blocks from disk...");
         List<String> blocks =
             readBlocksFromDisk(readRequest.getMetas(), fileSplits, readRequest.getN());
+
+        logger.info("Writing blocks to master...");
         writeBucketBlocksToMaster(blocks);
 
         close();
@@ -144,6 +153,7 @@ public class TopknWorker implements Runnable {
     }
 
     private DataIndex readDataIndex(File indexFile) {
+        if (!indexFile.exists()) { return null; }
         ObjectMapper mapper = new ObjectMapper();
         try {
             return mapper.readValue(indexFile, DataIndex.class);
@@ -157,7 +167,6 @@ public class TopknWorker implements Runnable {
         logger.info("Begin to connect " + host + ":" + port);
 
         socketChannel = SocketChannel.open(new InetSocketAddress(host, port));
-        socketChannel.configureBlocking(true);
     }
 
     private void close() throws IOException {
@@ -198,46 +207,15 @@ public class TopknWorker implements Runnable {
     }
 
     private BucketBlockReadRequest readBucketBlockReadRequestFromMaster() throws IOException {
-        ByteBuffer buffer = ByteBuffer.allocate(READ_BUFFER_SIZE);
-
-        byte[] readBytes = new byte[0];
-        while (socketChannel.read(buffer) != -1) {
-            buffer.flip();
-            readBytes = Bytes.concat(readBytes, buffer.array());
-            buffer.clear();
-        }
-
-        ObjectMapper mapper = new ObjectMapper();
-
-        return mapper.readValue(readBytes, BucketBlockReadRequest.class);
+        return SocketUtils.read(socketChannel, BucketBlockReadRequest.class);
     }
 
     private void writeDataIndexToMaster(DataIndex index) throws IOException {
-        ObjectMapper mapper = new ObjectMapper();
-        byte[] indexBytes = mapper.writeValueAsBytes(index);
-
-        ByteBuffer buffer = ByteBuffer.allocate(indexBytes.length);
-        buffer.put(indexBytes);
-        buffer.flip();
-
-        while (buffer.hasRemaining()) {
-            socketChannel.write(buffer);
-        }
-        buffer.clear();
+        SocketUtils.write(socketChannel, index);
     }
 
     private void writeBucketBlocksToMaster(List<String> blocks) throws IOException {
         BucketBlockResult result = new BucketBlockResult(blocks);
-        ObjectMapper mapper = new ObjectMapper();
-        byte[] resultBytes = mapper.writeValueAsBytes(result);
-
-        ByteBuffer buffer = ByteBuffer.allocate(resultBytes.length);
-        buffer.put(resultBytes);
-        buffer.flip();
-
-        while (buffer.hasRemaining()) {
-            socketChannel.write(buffer);
-        }
-        buffer.clear();
+        SocketUtils.write(socketChannel, result);
     }
 }

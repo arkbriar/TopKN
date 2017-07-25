@@ -1,6 +1,8 @@
 package com.alibaba.middleware.topkn.race.sort.buckets;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Created by Shunjie Ding on 24/07/2017.
@@ -46,5 +48,15 @@ public class BucketMeta {
 
     public void increaseSizeByOne() {
         size++;
+    }
+
+    @Override
+    public String toString() {
+        try {
+            return new ObjectMapper().writeValueAsString(this);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+        return "Bucket(" + strLen + ", " + leadingCharacter + ")";
     }
 }

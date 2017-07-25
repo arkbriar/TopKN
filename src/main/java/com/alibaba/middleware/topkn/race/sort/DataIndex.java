@@ -16,11 +16,13 @@ import java.util.Map;
 public class DataIndex {
     private List<BucketMeta> metas = new ArrayList<>(128 * 36);
 
+    private DataIndex() {}
+
     public DataIndex(Map<Integer, Map<Character, BufferedBucket>> buckets) {
         int count = 0;
-        for (Integer i : buckets.keySet()) {
+        for (int i = 1; i <= 128; ++i) {
             Map<Character, BufferedBucket> sBuckets = buckets.get(i);
-            for (Character c : sBuckets.keySet()) {
+            for (Character c : "0123456789abcdefghijklmnopqrstuvwxyz".toCharArray()) {
                 metas.add(sBuckets.get(c).getMeta());
             }
         }
