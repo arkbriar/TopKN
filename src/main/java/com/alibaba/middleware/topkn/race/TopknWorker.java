@@ -1,150 +1,243 @@
 package com.alibaba.middleware.topkn.race;
 
+import com.google.common.primitives.Bytes;
+
+import com.alibaba.middleware.topkn.race.comm.BucketBlockReadRequest;
+import com.alibaba.middleware.topkn.race.comm.BucketBlockResult;
+import com.alibaba.middleware.topkn.race.sort.BucketSorter;
+import com.alibaba.middleware.topkn.race.sort.DataIndex;
+import com.alibaba.middleware.topkn.race.sort.buckets.BucketMeta;
+import com.alibaba.middleware.topkn.race.sort.buckets.BufferedBucket;
+import com.alibaba.middleware.topkn.race.sort.comparator.StringComparator;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FilenameFilter;
 import java.io.IOException;
-import java.net.ConnectException;
+import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Worker1会接收master提供的题目信息，并且得到计算结果后返回给master Created by wanshao on
- * 2017/6/29.
+ * Created by Shunjie Ding on 25/07/2017.
  */
-public class TopknWorker {
-    private static int masterPort;
+public class TopknWorker implements Runnable {
+    private static final Logger logger = LoggerFactory.getLogger(TopknWorker.class);
+    private static final int READ_BUFFER_SIZE = 1024 * 1024;
     private static String masterHostAddress;
-    private final String dataDirPath = "/Users/wanshao/work/final_data";
-    private Logger logger = LoggerFactory.getLogger(TopknWorker.class);
+    private static int masterPort;
+    private static String dataDirPath;
+    private static String indexStorePath;
+    private SocketChannel socketChannel = null;
 
-    private long k;
-    private int n;
-
-    public static void main(String[] args) throws Exception {
+    private static void initProperties(String[] args) {
         masterHostAddress = args[0];
-        //需要通过args参数传递，master会开启5527和5528两个端口提供连接
         masterPort = Integer.valueOf(args[1]);
-        //支持重连
+        dataDirPath = args[2];
+        indexStorePath = Paths.get(dataDirPath + "/index").toString();
+    }
+
+    public static void main(String[] args) throws InterruptedException, IOException {
+        initProperties(args);
+
         while (true) {
             try {
-                new TopknWorker().connect(masterHostAddress, masterPort);
-                return;
+                TopknWorker worker = new TopknWorker();
+                worker.startWork();
             } catch (RuntimeException e) {
                 Thread.sleep(100);
             }
         }
     }
 
-    public void connect(String host, int port) throws ConnectException {
-        logger.info("begin to connect " + host + ":" + port);
-        SocketChannel socketChannel = null;
+    private static int getTotalSize(List<BucketMeta> metas) {
+        int size = 0;
+        for (BucketMeta meta : metas) {
+            size += meta.getSize();
+        }
+        return size;
+    }
+
+    private static void mapToBucket(List<BufferedBucket> buckets, String s) {
+        int strLen = s.length();
+        char leadingCharacter = s.charAt(0);
+
+        for (BufferedBucket bucket : buckets) {
+            if (bucket.getStrLen() == strLen && bucket.getLeadingCharacter() == leadingCharacter) {
+                bucket.add(s);
+                break;
+            }
+        }
+    }
+
+    @Override
+    public void run() {
         try {
-            socketChannel =
-                SocketChannel.open(new InetSocketAddress(masterHostAddress, masterPort));
-            socketChannel.configureBlocking(true);
-            logger.info("Connected to server: " + socketChannel);
-            Thread readThread = new Thread(new WorkerReadThread(socketChannel));
-            readThread.start();
-            readThread.join();
-            Thread writeThread = new Thread(new WorkerWriteThread(socketChannel, k, n));
-            writeThread.start();
-            writeThread.join();
-            socketChannel.close();
-        } catch (ConnectException e) {
-            throw new RuntimeException(e);
+            startWork();
         } catch (IOException e) {
-            throw new RuntimeException(e);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+            e.printStackTrace();
         }
     }
 
-    class WorkerWriteThread implements Runnable {
-        private static final int WRITE_BUFFER_SIZE = 1024;
-        private SocketChannel socketChannel;
-        private Logger logger = LoggerFactory.getLogger(WorkerReadThread.class);
-        // 比赛输入
-        private long k;
-        private int n;
+    private void startWork() throws IOException {
+        connect(masterHostAddress, masterPort);
 
-        public WorkerWriteThread(SocketChannel socketChannel, long k, int n) {
-            this.socketChannel = socketChannel;
-            this.k = k;
-            this.n = n;
+        DataIndex dataIndex = readDataIndex(new File(indexStorePath + "/index.json"));
+        List<String> fileSplits = listTextFilesInDir(dataDirPath);
+        if (dataIndex == null) {
+            dataIndex = coarseGrainedSort(fileSplits, indexStorePath);
         }
 
-        @Override
-        public void run() {
-            processAndSendResult(k, n);
-        }
+        writeDataIndexToMaster(dataIndex);
 
-        /**
-         * 根据比赛输入来计算结果,并且发送结果给master
-         */
-        private void processAndSendResult(long k, int n) {
-            logger.info("begin to process findBlocks problem");
+        BucketBlockReadRequest readRequest = readBucketBlockReadRequestFromMaster();
 
-            try {
-                logger.info(
-                    "Begin to send topkn result to master " + socketChannel.getRemoteAddress());
-                ByteBuffer sendBuffer = ByteBuffer.allocate(WRITE_BUFFER_SIZE);
-                // process findBlocks problem
-                //验证超时，休眠320秒
-                String data = "I am worker, and I have received data from master: k is " + k
-                    + " and n is " + n;
-                Thread.sleep(320000);
-                byte[] sendData = data.getBytes();
-                sendBuffer.clear();
-                sendBuffer.put(sendData);
-                sendBuffer.flip();
-                while (sendBuffer.hasRemaining()) {
-                    socketChannel.write(sendBuffer);
-                }
+        List<String> blocks =
+            readBlocksFromDisk(readRequest.getMetas(), fileSplits, readRequest.getN());
+        writeBucketBlocksToMaster(blocks);
 
-            } catch (IOException e) {
-                e.printStackTrace();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
+        close();
     }
 
-    /**
-     * worker可以使用该线程发送处理后的结果给worker Created by wanshao on 2017/7/8 0008.
-     */
-    class WorkerReadThread implements Runnable {
-        private static final int READ_BUFFER_SIZE = 1024 * 1024;
-        private SocketChannel socketChannel;
-        private Logger logger = LoggerFactory.getLogger(WorkerReadThread.class);
-
-        public WorkerReadThread(SocketChannel socketChannel) {
-            this.socketChannel = socketChannel;
+    private List<String> readBlocksFromDisk(
+        List<BucketMeta> metas, List<String> dataSplits, int n) {
+        List<BufferedBucket> buckets = new ArrayList<>(metas.size());
+        for (BucketMeta meta : metas) {
+            buckets.add(new BufferedBucket(meta, BufferedBucket.UNLIMITED));
         }
 
-        @Override
-        public void run() {
+        List<String> res = new ArrayList<>(getTotalSize(metas));
+
+        // Read all matching lines
+        for (String dataSplit : dataSplits) {
+            File file = new File(dataSplit);
             try {
-                logger.info(
-                    "Begin to read input data from master " + socketChannel.getRemoteAddress());
-                ByteBuffer readBuffer = ByteBuffer.allocate(READ_BUFFER_SIZE);
-                readBuffer.clear();
-                int readBytes = socketChannel.read(readBuffer);
-                if (readBuffer.remaining() >= 0) {
-                    // do something with the result
-                    readBuffer.flip();
-                    k = readBuffer.getLong();
-                    n = readBuffer.getInt();
-                    readBuffer.clear();
-                    logger.info("Receive input data, k is " + k + " and n is " + n);
+                InputStreamReader streamReader = new InputStreamReader(new FileInputStream(file));
+                BufferedReader reader = new BufferedReader(streamReader);
+
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    mapToBucket(buckets, line);
                 }
 
-                logger.info("Reading input data from master is finished...");
-
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
+
+        // Sort all buckets and get first n records
+        for (BufferedBucket bucket : buckets) {
+            res.addAll(bucket.sort(StringComparator.getInstance()));
+        }
+        return res.subList(0, n);
+    }
+
+    private DataIndex readDataIndex(File indexFile) {
+        ObjectMapper mapper = new ObjectMapper();
+        try {
+            return mapper.readValue(indexFile, DataIndex.class);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    private void connect(String host, int port) throws IOException {
+        logger.info("Begin to connect " + host + ":" + port);
+
+        socketChannel = SocketChannel.open(new InetSocketAddress(host, port));
+        socketChannel.configureBlocking(true);
+    }
+
+    private void close() throws IOException {
+        if (socketChannel != null) {
+            socketChannel.close();
+            socketChannel = null;
+        }
+    }
+
+    private List<String> listTextFilesInDir(String dir) {
+        List<String> files = new ArrayList<>();
+
+        File dirFile = new File(dir);
+        if (dirFile.isDirectory()) {
+            File[] fileList = dirFile.listFiles(new FilenameFilter() {
+                @Override
+                public boolean accept(File dir, String name) {
+                    return name.endsWith(".txt");
+                }
+            });
+            if (fileList == null) {
+                return files;
+            }
+            for (File file : fileList) {
+                files.add(file.getAbsolutePath());
+            }
+        }
+
+        return files;
+    }
+
+    private DataIndex coarseGrainedSort(List<String> dataSplits, String storeDir) {
+        BucketSorter sorter = new BucketSorter(storeDir, dataSplits);
+
+        sorter.coarseGrainedSortInParallel();
+
+        return sorter.getIndex();
+    }
+
+    private BucketBlockReadRequest readBucketBlockReadRequestFromMaster() throws IOException {
+        ByteBuffer buffer = ByteBuffer.allocate(READ_BUFFER_SIZE);
+
+        byte[] readBytes = new byte[0];
+        while (socketChannel.read(buffer) != -1) {
+            buffer.flip();
+            readBytes = Bytes.concat(readBytes, buffer.array());
+            buffer.clear();
+        }
+
+        ObjectMapper mapper = new ObjectMapper();
+
+        return mapper.readValue(readBytes, BucketBlockReadRequest.class);
+    }
+
+    private void writeDataIndexToMaster(DataIndex index) throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        byte[] indexBytes = mapper.writeValueAsBytes(index);
+
+        ByteBuffer buffer = ByteBuffer.allocate(indexBytes.length);
+        buffer.put(indexBytes);
+        buffer.flip();
+
+        while (buffer.hasRemaining()) {
+            socketChannel.write(buffer);
+        }
+        buffer.clear();
+    }
+
+    private void writeBucketBlocksToMaster(List<String> blocks) throws IOException {
+        BucketBlockResult result = new BucketBlockResult(blocks);
+        ObjectMapper mapper = new ObjectMapper();
+        byte[] resultBytes = mapper.writeValueAsBytes(result);
+
+        ByteBuffer buffer = ByteBuffer.allocate(resultBytes.length);
+        buffer.put(resultBytes);
+        buffer.flip();
+
+        while (buffer.hasRemaining()) {
+            socketChannel.write(buffer);
+        }
+        buffer.clear();
     }
 }

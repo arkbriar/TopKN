@@ -1,6 +1,6 @@
 package com.alibaba.middleware.topkn.race.sort.buckets;
 
-import com.alibaba.middleware.topkn.race.sort.StringComparator;
+import com.alibaba.middleware.topkn.race.sort.comparator.StringComparator;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -18,7 +18,7 @@ public class BufferedBucket {
     private BucketMeta meta;
     private List<String> data;
 
-    private Comparator<String> comparator = StringComparator.getSingle();
+    private Comparator<String> comparator = StringComparator.getInstance();
 
     public BufferedBucket(BucketMeta meta, int persistenceLimit) {
         this.meta = meta;
@@ -95,7 +95,7 @@ public class BufferedBucket {
 
     public void flushToDisk(String filePath) {
         try {
-            BucketUtils.FlushToDisk(data, filePath);
+            BucketUtils.flushToDisk(data, filePath);
         } catch (IOException e) {
             e.printStackTrace();
         }

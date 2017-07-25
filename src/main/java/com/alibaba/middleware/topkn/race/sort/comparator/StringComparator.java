@@ -1,4 +1,4 @@
-package com.alibaba.middleware.topkn.race.sort;
+package com.alibaba.middleware.topkn.race.sort.comparator;
 
 import java.util.Comparator;
 
@@ -8,7 +8,7 @@ import java.util.Comparator;
 public class StringComparator implements Comparator<String> {
     private static final Comparator<String> single = new StringComparator();
 
-    public static Comparator<String> getSingle() {
+    public static Comparator<String> getInstance() {
         return single;
     }
 

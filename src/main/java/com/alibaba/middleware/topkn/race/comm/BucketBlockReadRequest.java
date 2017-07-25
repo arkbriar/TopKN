@@ -12,7 +12,7 @@ public class BucketBlockReadRequest {
 
     private List<BucketMeta> metas;
 
-    public BucketBlockReadRequest() {}
+    private BucketBlockReadRequest() {}
 
     public BucketBlockReadRequest(int n, List<BucketMeta> metas) {
         this.n = n;
@@ -23,15 +23,7 @@ public class BucketBlockReadRequest {
         return n;
     }
 
-    public void setN(int n) {
-        this.n = n;
-    }
-
     public List<BucketMeta> getMetas() {
         return metas;
-    }
-
-    public void setMetas(List<BucketMeta> metas) {
-        this.metas = metas;
     }
 }

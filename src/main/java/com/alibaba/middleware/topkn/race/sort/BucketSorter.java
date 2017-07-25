@@ -2,6 +2,7 @@ package com.alibaba.middleware.topkn.race.sort;
 
 import com.alibaba.middleware.topkn.race.sort.buckets.BucketUtils;
 import com.alibaba.middleware.topkn.race.sort.buckets.BufferedBucket;
+import com.alibaba.middleware.topkn.race.sort.comparator.StringComparator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -293,7 +294,7 @@ public class BucketSorter {
             }
 
             if (bucket.getStrLen() != 1) {
-                Collections.sort(bucket.getData(), StringComparator.getSingle());
+                Collections.sort(bucket.getData(), StringComparator.getInstance());
             }
 
             // flush to disk and free memory

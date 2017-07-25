@@ -1,5 +1,15 @@
 package com.alibaba.middleware.topkn.race;
 
+import com.google.common.primitives.Bytes;
+
+import com.alibaba.middleware.topkn.race.comm.BucketBlockReadRequest;
+import com.alibaba.middleware.topkn.race.comm.BucketBlockResult;
+import com.alibaba.middleware.topkn.race.sort.DataIndex;
+import com.alibaba.middleware.topkn.race.sort.MergeSorter;
+import com.alibaba.middleware.topkn.race.sort.buckets.BucketMeta;
+import com.alibaba.middleware.topkn.race.sort.buckets.BucketUtils;
+import com.alibaba.middleware.topkn.race.sort.comparator.StringComparator;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -8,149 +18,215 @@ import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /**
- * TopknMaster负责接收题目给定的k,n值，并且将信息发送给TopknWorker1和TopknWorker2 Created by wanshao
- * on 2017/6/29.
+ * Created by Shunjie Ding on 25/07/2017.
  */
 public class TopknMaster implements Runnable {
-    // 比赛输入
+    private static final Logger logger = LoggerFactory.getLogger(TopknMaster.class);
+
     private static long k;
     private static int n;
-    private static Logger logger = LoggerFactory.getLogger(TopknMaster.class);
-    // port address of com.alibaba.middleware.topkn.TopknWorker
-    private int port;
 
-    public TopknMaster(int port) {
-        this.port = port;
-    }
+    private static int[] ports = {5527, 5528};
 
-    /**
-     * 初始化系统属性
-     */
-    private static void initProperties() {}
+    private SocketChannel[] socketChannels = new SocketChannel[2];
+    private DataIndex[] dataIndices = new DataIndex[2];
+    private String resultFile = "res.txt";
+    private int kInMergedBlocks = 0;
 
     public static void main(String[] args) {
-        logger.info("init some args....");
-        initProperties();
-        // 获取比赛使用的k,n值
         k = Long.valueOf(args[0]);
         n = Integer.valueOf(args[1]);
 
-        ExecutorService executorService = Executors.newFixedThreadPool(2);
-        executorService.submit(new TopknMaster(5527));
-        executorService.submit(new TopknMaster(5528));
+        TopknMaster master = new TopknMaster();
+        master.run();
     }
 
     @Override
     public void run() {
-        this.startMasterThread(port);
-    }
-
-    /**
-     * @return
-     * @throws IOException
-     */
-    private void startMasterThread(int port) {
-        ServerSocketChannel serverSocket = null;
         try {
-            serverSocket = ServerSocketChannel.open();
-            serverSocket.bind(new InetSocketAddress(port));
-            logger.info("Port 5527 and 5528 is open for connecting...");
-
-            // 处理一次请求来回即可
-            SocketChannel socketChannel = serverSocket.accept();
-            socketChannel.configureBlocking(true);
-            Thread writeThread = new Thread(new MasterWriteThread(socketChannel));
-            Thread readThread = new Thread(new MasterReadThread(socketChannel));
-            writeThread.start();
-            readThread.start();
-            readThread.join();
-
-            // 处理完毕后关闭socket
-            socketChannel.close();
-
-        } catch (IOException e) {
+            startMaster();
+        } catch (ExecutionException e) {
             e.printStackTrace();
         } catch (InterruptedException e) {
             e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
-    class MasterReadThread implements Runnable {
-        private final Logger logger = LoggerFactory.getLogger(MasterReadThread.class);
-        private final int READ_BUFFER_SIZE = 1024;
+    public void startMaster() throws ExecutionException, InterruptedException, IOException {
+        List<Future<SocketChannel>> futures = startServerSocketsAndAcceptRequest();
+        for (int i = 0; i < futures.size(); ++i) {
+            socketChannels[i] = futures.get(i).get();
+        }
+
+        List<Future<DataIndex>> dataIndicesFutures = readDataIndices();
+        for (int i = 0; i < dataIndicesFutures.size(); ++i) {
+            dataIndices[i] = dataIndicesFutures.get(i).get();
+        }
+
+        List<BucketBlockReadRequest> readRequests = findBlocksAndConstructBlockReadRequests(k, n);
+        List<BucketBlockResult> blockResults = readBlocks(readRequests);
+
+        List<String> merged = new MergeSorter(StringComparator.getInstance())
+            .merge(blockResults.get(0).getBlock(),
+                blockResults.get(1).getBlock(), kInMergedBlocks + n - 1);
+        List<String> result = merged.subList(kInMergedBlocks - 1, kInMergedBlocks + n - 1);
+
+        BucketUtils.flushToDisk(result, resultFile);
+    }
+
+    private List<Future<SocketChannel>> startServerSocketsAndAcceptRequest() {
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        List<Future<SocketChannel>> futures = new ArrayList<>(2);
+        for (int i = 0; i < 2; ++i) {
+            futures.add(executorService.submit(new StartServerSocketTask(ports[i])));
+        }
+        return futures;
+    }
+
+    private List<Future<DataIndex>> readDataIndices() {
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        List<Future<DataIndex>> futures = new ArrayList<>(2);
+        for (int i = 0; i < 2; ++i) {
+            futures.add(executorService.submit(new ReadDataIndexTask(socketChannels[i])));
+        }
+        return futures;
+    }
+
+    private List<BucketBlockResult> readBlocks(List<BucketBlockReadRequest> readRequests)
+        throws ExecutionException, InterruptedException {
+        List<Future<BucketBlockResult>> futures = new ArrayList<>(2);
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        for (int i = 0; i < 2; ++i) {
+            futures.add(executorService.submit(
+                new RequestAndReadDataBlocksTask(socketChannels[i], readRequests.get(i))));
+        }
+
+        List<BucketBlockResult> blockResults = new ArrayList<>(2);
+        for (Future<BucketBlockResult> future : futures) {
+            blockResults.add(future.get());
+        }
+        return blockResults;
+    }
+
+    private List<BucketBlockReadRequest> findBlocksAndConstructBlockReadRequests(long k, int n) {
+        long prevBlocksTotalSize = 0;
+        int blockIndexToRead = 0;
+        for (; prevBlocksTotalSize < k && blockIndexToRead < 128 * 36; ++blockIndexToRead) {
+            for (DataIndex dataIndex : dataIndices) {
+                prevBlocksTotalSize += dataIndex.getMetas().get(blockIndexToRead).getSize();
+            }
+        }
+        --blockIndexToRead;
+
+        kInMergedBlocks = (int) (k - prevBlocksTotalSize);
+        long sizeToRead = k - prevBlocksTotalSize + n - 1;
+
+        List<BucketBlockReadRequest> readRequests = new ArrayList<>(2);
+        for (DataIndex dataIndex : dataIndices) {
+            List<BucketMeta> bucketMetas =
+                dataIndex.getMetasFromIndexWithAtLeastSize(blockIndexToRead, sizeToRead);
+            readRequests.add(new BucketBlockReadRequest((int) sizeToRead, bucketMetas));
+        }
+        return readRequests;
+    }
+
+    private class StartServerSocketTask implements Callable<SocketChannel> {
+        private int port;
+
+        StartServerSocketTask(int port) {
+            this.port = port;
+        }
+
+        @Override
+        public SocketChannel call() throws Exception {
+            ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
+            serverSocketChannel.bind(new InetSocketAddress(port));
+
+            logger.info("Opening port " + port + " for connecting...");
+
+            SocketChannel socketChannel = serverSocketChannel.accept();
+            socketChannel.configureBlocking(true);
+
+            return socketChannel;
+        }
+    }
+
+    private class ReadDataIndexTask implements Callable<DataIndex> {
         private SocketChannel socketChannel;
 
-        public MasterReadThread(SocketChannel socketChannel) {
+        ReadDataIndexTask(SocketChannel socketChannel) {
             this.socketChannel = socketChannel;
         }
 
         @Override
-        public void run() {
-            getResultAndProcess();
-        }
+        public DataIndex call() throws Exception {
+            ByteBuffer buffer = ByteBuffer.allocate(1024 * 1024);
 
-        /**
-         * 获取worker的结果并且处理
-         */
-        private void getResultAndProcess() {
-            try {
-                logger.info("Begin to read result from worker " + socketChannel.getRemoteAddress());
-                ByteBuffer readBuffer = ByteBuffer.allocate(READ_BUFFER_SIZE);
-                while (socketChannel.read(readBuffer) != -1) {
-                    readBuffer.flip();
-
-                    // do something with the result
-                    processResult(readBuffer);
-                    readBuffer.clear();
-                }
-
-            } catch (IOException e) {
-                e.printStackTrace();
+            byte[] indexBytes = new byte[0];
+            while (socketChannel.read(buffer) != -1) {
+                buffer.flip();
+                indexBytes = Bytes.concat(indexBytes, buffer.array());
+                buffer.clear();
             }
-        }
 
-        /**
-         * 对结果数据做一些处理
-         */
-        private void processResult(ByteBuffer readBuffer) {
-            logger.info(new String(readBuffer.array()));
-            System.out.println(new String(readBuffer.array()));
+            ObjectMapper mapper = new ObjectMapper();
+            return mapper.readValue(indexBytes, DataIndex.class);
         }
     }
 
-    /**
-     * master可以使用该线程发送比赛数据给worker,并且读取处理结果
-     */
-    public class MasterWriteThread implements Runnable {
-        private static final int WRITE_BUFFER_SIZE = 1024;
-        private final Logger logger = LoggerFactory.getLogger(MasterWriteThread.class);
+    private class RequestAndReadDataBlocksTask implements Callable<BucketBlockResult> {
         private SocketChannel socketChannel;
 
-        public MasterWriteThread(SocketChannel socketChannel) {
+        private BucketBlockReadRequest readRequest;
+
+        RequestAndReadDataBlocksTask(
+            SocketChannel socketChannel, BucketBlockReadRequest readRequest) {
             this.socketChannel = socketChannel;
+            this.readRequest = readRequest;
+        }
+
+        private void sendRequest(BucketBlockReadRequest readRequest) throws IOException {
+            ObjectMapper mapper = new ObjectMapper();
+            byte[] requestBytes = mapper.writeValueAsBytes(readRequest);
+
+            ByteBuffer buffer = ByteBuffer.allocate(requestBytes.length);
+            buffer.put(requestBytes);
+            buffer.flip();
+
+            while (buffer.hasRemaining()) {
+                socketChannel.write(buffer);
+            }
+        }
+
+        private BucketBlockResult readResult() throws IOException {
+            ByteBuffer buffer = ByteBuffer.allocate(1024 * 1024);
+            byte[] blockBytes = new byte[0];
+
+            while (socketChannel.read(buffer) != -1) {
+                buffer.flip();
+                blockBytes = Bytes.concat(blockBytes, buffer.array());
+                buffer.clear();
+            }
+
+            ObjectMapper mapper = new ObjectMapper();
+            return mapper.readValue(blockBytes, BucketBlockResult.class);
         }
 
         @Override
-        public void run() {
-            try {
-                logger.info("Begin to send input to worker " + socketChannel.getRemoteAddress());
-                ByteBuffer sendBuffer = ByteBuffer.allocate(WRITE_BUFFER_SIZE);
-                sendBuffer.clear();
-                // 发送比赛输入
-                sendBuffer.putLong(k);
-                sendBuffer.putInt(n);
-                sendBuffer.flip();
-                while (sendBuffer.hasRemaining()) {
-                    socketChannel.write(sendBuffer);
-                }
-
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+        public BucketBlockResult call() throws Exception {
+            sendRequest(readRequest);
+            return readResult();
         }
     }
 }
