@@ -4,6 +4,7 @@ import com.alibaba.middleware.topkn.race.sort.StringComparator;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
@@ -57,6 +58,11 @@ public class BufferedBucket {
 
     synchronized public void increaseSize() {
         meta.increaseSizeByOne();
+    }
+
+    public List<String> sort(Comparator<String> comparator) {
+        Collections.sort(data, comparator);
+        return data;
     }
 
     public int getStrLen() {

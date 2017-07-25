@@ -1,4 +1,4 @@
-package com.alibaba.middleware.topkn.race.communication;
+package com.alibaba.middleware.topkn.race.sort;
 
 import com.alibaba.middleware.topkn.race.sort.buckets.BucketMeta;
 import com.alibaba.middleware.topkn.race.sort.buckets.BufferedBucket;

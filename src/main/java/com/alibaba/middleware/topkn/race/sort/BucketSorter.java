@@ -1,6 +1,5 @@
 package com.alibaba.middleware.topkn.race.sort;
 
-import com.alibaba.middleware.topkn.race.communication.DataIndex;
 import com.alibaba.middleware.topkn.race.sort.buckets.BucketUtils;
 import com.alibaba.middleware.topkn.race.sort.buckets.BufferedBucket;
 import org.slf4j.Logger;
@@ -38,6 +37,7 @@ public class BucketSorter {
     private List<String> fileSplits;
     private Map<Integer, Map<Character, BufferedBucket>> buckets;
     private List<BufferedBucket> bucketList = new ArrayList<>(128 * 36);
+    private DataIndex index;
 
     public BucketSorter(String storeDir, List<String> fileSplits) {
         this.storeDir = storeDir;
@@ -146,11 +146,10 @@ public class BucketSorter {
         logger.info("Index file's written!");
     }
 
-    private DataIndex index;
-
     private void persistentDataIndex() {
-        if (index == null)
+        if (index == null) {
             index = new DataIndex(buckets);
+        }
 
         try {
             index.flushToDisk(getIndexFile());
@@ -219,6 +218,8 @@ public class BucketSorter {
     }
 
     private class FileSplitLineReader implements Runnable {
+        protected Logger logger = LoggerFactory.getLogger(FileSplitLineReader.class);
+
         String fileSplit;
 
         public FileSplitLineReader(String fileSplit) {
@@ -260,10 +261,9 @@ public class BucketSorter {
     }
 
     private class FileSplitLineReaderWithPersistence extends FileSplitLineReader {
-        String fileSplit;
-
         public FileSplitLineReaderWithPersistence(String fileSplit) {
             super(fileSplit);
+            logger = LoggerFactory.getLogger(FileSplitLineReaderWithPersistence.class);
         }
 
         @Override
@@ -273,6 +273,8 @@ public class BucketSorter {
     }
 
     private class BucketSortThread implements Runnable {
+        private final Logger logger = LoggerFactory.getLogger(BucketSortThread.class);
+
         private BufferedBucket bucket;
 
         public BucketSortThread(BufferedBucket bucket) {
