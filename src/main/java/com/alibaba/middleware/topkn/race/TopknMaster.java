@@ -39,6 +39,8 @@ public class TopknMaster implements Runnable {
     private String resultFile = "res.txt";
     private int kInMergedBlocks = 0;
 
+    private ExecutorService executorService = Executors.newFixedThreadPool(2);
+
     public static void main(String[] args) {
         k = Long.valueOf(args[0]);
         n = Integer.valueOf(args[1]);
@@ -96,32 +98,29 @@ public class TopknMaster implements Runnable {
         logger.info("Writing result to file " + resultFile);
 
         FileUtils.flushToDisk(result, resultFile);
+
+        executorService.shutdown();
     }
 
     private List<Future<SocketChannel>> startServerSocketsAndAcceptRequest() {
-        ExecutorService executorService = Executors.newFixedThreadPool(2);
         List<Future<SocketChannel>> futures = new ArrayList<>(2);
         for (int i = 0; i < 2; ++i) {
             futures.add(executorService.submit(new StartServerSocketTask(ports[i])));
         }
-        executorService.shutdown();
         return futures;
     }
 
     private List<Future<DataIndex>> readDataIndices() {
-        ExecutorService executorService = Executors.newFixedThreadPool(2);
         List<Future<DataIndex>> futures = new ArrayList<>(2);
         for (int i = 0; i < 2; ++i) {
             futures.add(executorService.submit(new ReadDataIndexTask(socketChannels[i])));
         }
-        executorService.shutdown();
         return futures;
     }
 
     private List<BucketBlockResult> readBlocks(List<BucketBlockReadRequest> readRequests)
         throws ExecutionException, InterruptedException {
         List<Future<BucketBlockResult>> futures = new ArrayList<>(2);
-        ExecutorService executorService = Executors.newFixedThreadPool(2);
         for (int i = 0; i < 2; ++i) {
             futures.add(executorService.submit(
                 new RequestAndReadDataBlocksTask(socketChannels[i], readRequests.get(i))));
@@ -131,7 +130,6 @@ public class TopknMaster implements Runnable {
         for (Future<BucketBlockResult> future : futures) {
             blockResults.add(future.get());
         }
-        executorService.shutdown();
         return blockResults;
     }
 
