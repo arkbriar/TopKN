@@ -59,8 +59,6 @@ public class BucketMapper {
 
         AtomicIntegerArray atomicIntegerArray = bucketMapper.getAtomicIntegerArray();
 
-        logger.info(atomicIntegerArray.toString());
-
         int sum = 0;
         for (int i = 0; i < BUCKET_NUMBER; ++i) {
             sum += atomicIntegerArray.get(i);
