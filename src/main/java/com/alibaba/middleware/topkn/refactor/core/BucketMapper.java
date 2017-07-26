@@ -24,7 +24,9 @@ public class BucketMapper {
 
     private List<String> fileSplits;
 
-    private AtomicIntegerArray atomicIntegerArray = new AtomicIntegerArray(127 * 36 * 36 + 36);
+    private static final int BUCKET_NUMBER = 127 * 36 * 36 + 36;
+
+    private AtomicIntegerArray atomicIntegerArray = new AtomicIntegerArray(BUCKET_NUMBER);
 
     public BucketMapper(List<String> fileSplits) {
         this.fileSplits = fileSplits;
@@ -60,7 +62,7 @@ public class BucketMapper {
         logger.info(atomicIntegerArray.toString());
 
         int sum = 0;
-        for (int i = 0; i < 128 * 36; ++i) {
+        for (int i = 0; i < BUCKET_NUMBER; ++i) {
             sum += atomicIntegerArray.get(i);
         }
 
