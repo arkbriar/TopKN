@@ -9,8 +9,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -25,10 +23,10 @@ import java.util.concurrent.TimeUnit;
 public class LineProcessor {
     private static final Logger logger = LoggerFactory.getLogger(LineProcessor.class);
 
-    private static final int BUFFER_SIZE = 1 * 1024 * 1024;
+    private static final int BUFFER_SIZE = 2 * 1024 * 1024;
     private static final int BUFFER_SIZE_WITH_MARGIN = BUFFER_SIZE + 256;
 
-    private int concurrentNum = 4;
+    private int concurrentNum;
 
     private File file;
 
@@ -48,15 +46,15 @@ public class LineProcessor {
         }
     }
 
-    public <T extends BufferLineProcessor> void scan(Class<T> clazz)
-        throws FileNotFoundException, InterruptedException, ExecutionException, IllegalAccessException,
-               InstantiationException, NoSuchMethodException, InvocationTargetException {
+    public <T extends BufferLineProcessorFactory> void scan(T factory)
+        throws FileNotFoundException, InterruptedException, ExecutionException,
+               IllegalAccessException, InstantiationException, NoSuchMethodException,
+               InvocationTargetException {
         ExecutorService executorService = Executors.newFixedThreadPool(concurrentNum + 1);
         Future future = executorService.submit(new Reader(new FileInputStream(file)));
         for (int i = 0; i < concurrentNum; ++i) {
             BufferLineProcessor processor =
-                clazz.getDeclaredConstructor(BlockingQueue.class, BlockingQueue.class)
-                    .newInstance(freeBufferBlockingQueue, bufferBlockingQueue);
+                factory.newInstance(freeBufferBlockingQueue, bufferBlockingQueue);
             executorService.submit(processor);
         }
         executorService.shutdown();
@@ -71,39 +69,7 @@ public class LineProcessor {
         executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
     }
 
-    public <T extends BufferLineProcessor, R> List<R> scan(Class<T> clazz, R result)
-        throws FileNotFoundException, InterruptedException, ExecutionException, IllegalAccessException,
-               InstantiationException, NoSuchMethodException, InvocationTargetException {
-        ExecutorService executorService = Executors.newFixedThreadPool(concurrentNum + 1);
-        Future future = executorService.submit(new Reader(new FileInputStream(file)));
-
-        List<Future<R>> processorResultFutures = new ArrayList<>(concurrentNum);
-        for (int i = 0; i < concurrentNum; ++i) {
-            BufferLineProcessor processor =
-                clazz.getDeclaredConstructor(BlockingQueue.class, BlockingQueue.class)
-                    .newInstance(freeBufferBlockingQueue, bufferBlockingQueue);
-
-            processorResultFutures.add(executorService.submit(processor, result));
-        }
-        executorService.shutdown();
-        // wait for reader to exit
-        future.get();
-
-        // send empty ByteBuffer to notify processors to exit
-        for (int i = 0; i < concurrentNum; ++i) {
-            bufferBlockingQueue.put(ByteBuffer.allocate(0));
-        }
-
-        List<R> processorResults = new ArrayList<>(concurrentNum);
-        for (int i = 0; i < concurrentNum; ++i) {
-            processorResults.add(processorResultFutures.get(i).get());
-        }
-
-        return processorResults;
-    }
-
     private class Reader implements Runnable {
-
         private FileInputStream fileInputStream;
 
         Reader(FileInputStream fileInputStream) {
@@ -146,7 +112,9 @@ public class LineProcessor {
             if (readSize == BUFFER_SIZE) {
                 if (inner[BUFFER_SIZE - 1] != '\n') {
                     int r = readToNext(fileInputStream, inner, BUFFER_SIZE, '\n');
-                    if (r != -1) { readSize += r; }
+                    if (r != -1) {
+                        readSize += r;
+                    }
                 }
             }
             buffer.limit(readSize);

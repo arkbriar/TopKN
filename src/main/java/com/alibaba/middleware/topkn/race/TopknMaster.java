@@ -105,7 +105,7 @@ public class TopknMaster implements Runnable {
         logger.info("All blocks're read.");
 
         List<String> merged = new MergeSorter(StringComparator.getInstance())
-            .merge(blocks.get(0), blocks.get(1), kInMergedBlocks + n - 1);
+                                  .merge(blocks.get(0), blocks.get(1), kInMergedBlocks + n - 1);
         List<String> result = merged.subList(kInMergedBlocks - 1, kInMergedBlocks + n - 1);
 
         logger.info("Writing result to file " + resultFile);

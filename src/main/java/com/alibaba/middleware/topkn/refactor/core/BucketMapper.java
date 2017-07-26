@@ -2,6 +2,7 @@ package com.alibaba.middleware.topkn.refactor.core;
 
 import com.alibaba.middleware.topkn.refactor.Constants;
 import com.alibaba.middleware.topkn.refactor.process.BufferLineProcessor;
+import com.alibaba.middleware.topkn.refactor.process.BufferLineProcessorFactory;
 import com.alibaba.middleware.topkn.refactor.process.LineProcessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,7 +20,6 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
  * Created by Shunjie Ding on 26/07/2017.
  */
 public class BucketMapper {
-
     private static final Logger logger = LoggerFactory.getLogger(BucketMapper.class);
 
     private List<String> fileSplits;
@@ -31,24 +31,27 @@ public class BucketMapper {
     }
 
     private static int getCharIndex(char c) {
-        if (c <= '9') { return c - '0'; } else { return c - 'a'; }
+        if (c <= '9') {
+            return c - '0';
+        } else {
+            return c - 'a';
+        }
     }
 
     public static int getBucketIndex(int strLen, byte[] a, int i) {
-        if (strLen == 1) { return getCharIndex((char) a[i]); }
-        return (strLen - 2) * 36 * 36 + getCharIndex((char) a[i]) * 36 + getCharIndex(
-            (char) a[i + 1]);
+        if (strLen == 1) {
+            return getCharIndex((char) a[i]);
+        }
+        return (strLen - 2) * 36 * 36 + getCharIndex((char) a[i]) * 36
+            + getCharIndex((char) a[i + 1]);
     }
-
 
     // for test purpose
     public static void main(String[] args) throws InterruptedException {
-        List<String> fileSplits = Arrays.asList(
-            "split1.txt", "split2.txt", "split3.txt", "split4.txt", "split5.txt");
+        List<String> fileSplits =
+            Arrays.asList("split1.txt", "split2.txt", "split3.txt", "split4.txt", "split5.txt");
 
         BucketMapper bucketMapper = new BucketMapper(fileSplits);
-
-        logger.info("Here we go!");
 
         bucketMapper.mapToBuckets();
 
@@ -61,6 +64,7 @@ public class BucketMapper {
             sum += atomicIntegerArray.get(i);
         }
 
+        assert atomicIntegerArray.get(0) + atomicIntegerArray.get(1) == 343739;
         assert sum == 80000000;
     }
 
@@ -71,15 +75,14 @@ public class BucketMapper {
     public void mapToBuckets() throws InterruptedException {
         ExecutorService executorService = Executors.newFixedThreadPool(fileSplits.size());
         for (String fileSplit : fileSplits) {
-            executorService
-                .submit(new BucketLineProcessor(Constants.CONCURRENT_PROCESSOR_NUMBER, fileSplit));
+            executorService.submit(
+                new BucketLineProcessor(Constants.CONCURRENT_PROCESSOR_NUMBER, fileSplit));
         }
         executorService.shutdown();
         executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
     }
 
     private class BucketLineProcessor extends LineProcessor implements Runnable {
-
         public BucketLineProcessor(int concurrentNum, String filePath) {
             super(concurrentNum, filePath);
         }
@@ -87,17 +90,24 @@ public class BucketMapper {
         @Override
         public void run() {
             try {
-                scan(BucketBufferLineProcessor.class);
+                scan(new BucketBufferLineProcessorFactory());
             } catch (Exception e) {
                 e.printStackTrace();
             }
         }
     }
 
-    private class BucketBufferLineProcessor extends BufferLineProcessor {
+    private class BucketBufferLineProcessorFactory extends BufferLineProcessorFactory {
 
-        public BucketBufferLineProcessor(
-            BlockingQueue<ByteBuffer> freeBufferBlockingQueue,
+        @Override
+        public BufferLineProcessor newInstance(
+            BlockingQueue<ByteBuffer> p, BlockingQueue<ByteBuffer> q) {
+            return new BucketBufferLineProcessor(p, q);
+        }
+    }
+
+    private class BucketBufferLineProcessor extends BufferLineProcessor {
+        public BucketBufferLineProcessor(BlockingQueue<ByteBuffer> freeBufferBlockingQueue,
             BlockingQueue<ByteBuffer> bufferBlockingQueue) {
             super(freeBufferBlockingQueue, bufferBlockingQueue);
         }
