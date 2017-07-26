@@ -1,38 +1,41 @@
 package com.alibaba.middleware.topkn.refactor.process;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.nio.ByteBuffer;
-import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Created by Shunjie Ding on 26/07/2017.
  */
 public abstract class BufferLineProcessor implements Runnable {
-    private BlockingQueue<ByteBuffer> freeBufferBlockingQueue, bufferBlockingQueue;
+    private static final Logger logger = LoggerFactory.getLogger(BufferLineProcessor.class);
+
+    private ConcurrentLinkedQueue<ByteBuffer> freeBufferConcurrentLinkedQueue,
+        bufferConcurrentLinkedQueue;
 
     public BufferLineProcessor(
-        BlockingQueue<ByteBuffer> freeBufferBlockingQueue,
-        BlockingQueue<ByteBuffer> bufferBlockingQueue) {
-        this.freeBufferBlockingQueue = freeBufferBlockingQueue;
-        this.bufferBlockingQueue = bufferBlockingQueue;
+        ConcurrentLinkedQueue<ByteBuffer> freeBufferConcurrentLinkedQueue,
+        ConcurrentLinkedQueue<ByteBuffer> bufferConcurrentLinkedQueue) {
+        this.freeBufferConcurrentLinkedQueue = freeBufferConcurrentLinkedQueue;
+        this.bufferConcurrentLinkedQueue = bufferConcurrentLinkedQueue;
     }
 
     @Override
     public void run() {
-        try {
-            while (true) {
-                ByteBuffer buffer = bufferBlockingQueue.take();
+        while (true) {
+            ByteBuffer buffer = bufferConcurrentLinkedQueue.poll();
+            while (buffer == null) { buffer = bufferConcurrentLinkedQueue.poll(); }
 
-                // exit on empty buffer
-                if (buffer.capacity() == 0) {
-                    return;
-                }
-
-                process(buffer);
-                buffer.clear();
-                freeBufferBlockingQueue.put(buffer);
+            // exit on empty buffer
+            if (buffer.capacity() == 0) {
+                return;
             }
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+
+            process(buffer);
+            buffer.clear();
+            freeBufferConcurrentLinkedQueue.offer(buffer);
         }
     }
 

@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -21,11 +21,8 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
  */
 public class BucketMapper {
     private static final Logger logger = LoggerFactory.getLogger(BucketMapper.class);
-
-    private List<String> fileSplits;
-
     private static final int BUCKET_NUMBER = 127 * 36 * 36 + 36;
-
+    private List<String> fileSplits;
     private AtomicIntegerArray atomicIntegerArray = new AtomicIntegerArray(BUCKET_NUMBER);
 
     public BucketMapper(List<String> fileSplits) {
@@ -106,16 +103,16 @@ public class BucketMapper {
 
         @Override
         public BufferLineProcessor newInstance(
-            BlockingQueue<ByteBuffer> p, BlockingQueue<ByteBuffer> q) {
+            ConcurrentLinkedQueue<ByteBuffer> p, ConcurrentLinkedQueue<ByteBuffer> q) {
             return new BucketBufferLineProcessor(p, q);
         }
     }
 
     private class BucketBufferLineProcessor extends BufferLineProcessor {
         public BucketBufferLineProcessor(
-            BlockingQueue<ByteBuffer> freeBufferBlockingQueue,
-            BlockingQueue<ByteBuffer> bufferBlockingQueue) {
-            super(freeBufferBlockingQueue, bufferBlockingQueue);
+            ConcurrentLinkedQueue<ByteBuffer> freeBufferConcurrentLinkedQueue,
+            ConcurrentLinkedQueue<ByteBuffer> bufferConcurrentLinkedQueue) {
+            super(freeBufferConcurrentLinkedQueue, bufferConcurrentLinkedQueue);
         }
 
         @Override

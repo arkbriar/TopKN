@@ -11,8 +11,8 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -97,7 +97,7 @@ public class StringListReader {
 
         @Override
         public BufferLineProcessor newInstance(
-            BlockingQueue<ByteBuffer> p, BlockingQueue<ByteBuffer> q) {
+            ConcurrentLinkedQueue<ByteBuffer> p, ConcurrentLinkedQueue<ByteBuffer> q) {
             List<String> stringStore = new ArrayList<>();
             stringStores.add(stringStore);
             return new StringListBufferLineProcessor(p, q, stringStore);
@@ -109,9 +109,9 @@ public class StringListReader {
         private List<String> stringStore;
 
         StringListBufferLineProcessor(
-            BlockingQueue<ByteBuffer> freeBufferBlockingQueue,
-            BlockingQueue<ByteBuffer> bufferBlockingQueue, List<String> stringStore) {
-            super(freeBufferBlockingQueue, bufferBlockingQueue);
+            ConcurrentLinkedQueue<ByteBuffer> freeBufferConcurrentLinkedQueue,
+            ConcurrentLinkedQueue<ByteBuffer> bufferConcurrentLinkedQueue, List<String> stringStore) {
+            super(freeBufferConcurrentLinkedQueue, bufferConcurrentLinkedQueue);
             this.stringStore = stringStore;
         }
 

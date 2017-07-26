@@ -10,12 +10,11 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
-import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -28,8 +27,10 @@ public class LineProcessor {
 
     private File file;
 
-    private BlockingQueue<ByteBuffer> freeBufferBlockingQueue = new LinkedBlockingQueue<>();
-    private BlockingQueue<ByteBuffer> bufferBlockingQueue = new LinkedBlockingQueue<>();
+    private ConcurrentLinkedQueue<ByteBuffer> freeBufferConcurrentLinkedQueue =
+        new ConcurrentLinkedQueue<>();
+    private ConcurrentLinkedQueue<ByteBuffer> bufferConcurrentLinkedQueue =
+        new ConcurrentLinkedQueue<>();
 
     public LineProcessor(int concurrentNum, String filePath) {
         this.concurrentNum = concurrentNum;
@@ -39,8 +40,9 @@ public class LineProcessor {
     }
 
     private void prepareByteBuffers() {
-        for (int i = 0; i < concurrentNum * 2; ++i) {
-            freeBufferBlockingQueue.add(ByteBuffer.allocate(Constants.BUFFER_SIZE_WITH_MARGIN));
+        for (int i = 0; i < concurrentNum * 3 / 2; ++i) {
+            freeBufferConcurrentLinkedQueue
+                .add(ByteBuffer.allocate(Constants.BUFFER_SIZE_WITH_MARGIN));
         }
     }
 
@@ -52,7 +54,7 @@ public class LineProcessor {
         Future future = executorService.submit(new Reader(new FileInputStream(file)));
         for (int i = 0; i < concurrentNum; ++i) {
             BufferLineProcessor processor =
-                factory.newInstance(freeBufferBlockingQueue, bufferBlockingQueue);
+                factory.newInstance(freeBufferConcurrentLinkedQueue, bufferConcurrentLinkedQueue);
             executorService.submit(processor);
         }
         executorService.shutdown();
@@ -61,7 +63,7 @@ public class LineProcessor {
 
         // send empty ByteBuffer to notify processors to exit
         for (int i = 0; i < concurrentNum; ++i) {
-            bufferBlockingQueue.put(ByteBuffer.allocate(0));
+            bufferConcurrentLinkedQueue.offer(ByteBuffer.allocate(0));
         }
 
         executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
@@ -101,7 +103,8 @@ public class LineProcessor {
         }
 
         private void readNextSegment() throws IOException, InterruptedException {
-            ByteBuffer buffer = freeBufferBlockingQueue.take();
+            ByteBuffer buffer = freeBufferConcurrentLinkedQueue.poll();
+            while (buffer == null) { buffer = freeBufferConcurrentLinkedQueue.poll(); }
 
             buffer.clear();
             byte[] inner = buffer.array();
@@ -118,7 +121,7 @@ public class LineProcessor {
             }
             buffer.limit(readSize);
 
-            bufferBlockingQueue.put(buffer);
+            bufferConcurrentLinkedQueue.offer(buffer);
         }
     }
 }
