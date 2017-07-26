@@ -82,8 +82,6 @@ public class TopknMaster implements Runnable {
 
         List<BucketBlockReadRequest> readRequests = findBlocksAndConstructBlockReadRequests(k, n);
 
-        logger.info("");
-
         logger.info("Reading blocks...");
 
         List<BucketBlockResult> blockResults = readBlocks(readRequests);
