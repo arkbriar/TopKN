@@ -51,6 +51,7 @@ public class TopknWorker implements Runnable {
             try {
                 TopknWorker worker = new TopknWorker();
                 worker.startWork();
+                break;
             } catch (RuntimeException e) {
                 e.printStackTrace();
                 Thread.sleep(100);
