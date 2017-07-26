@@ -1,21 +1,31 @@
 package com.alibaba.middleware.topkn.refactor.process;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 /**
  * Created by Shunjie Ding on 26/07/2017.
  */
-public abstract class LineProcessor implements Runnable {
-    private static final int BUFFER_SIZE = 16 * 1024 * 1024;
+public class LineProcessor {
+    private static final Logger logger = LoggerFactory.getLogger(LineProcessor.class);
+
+    private static final int BUFFER_SIZE = 1 * 1024 * 1024;
     private static final int BUFFER_SIZE_WITH_MARGIN = BUFFER_SIZE + 256;
 
     private int concurrentNum = 4;
@@ -33,42 +43,63 @@ public abstract class LineProcessor implements Runnable {
     }
 
     private void prepareByteBuffers() {
-        for (int i = 0; i < concurrentNum; ++i) {
+        for (int i = 0; i < concurrentNum * 2; ++i) {
             freeBufferBlockingQueue.add(ByteBuffer.allocate(BUFFER_SIZE_WITH_MARGIN));
         }
     }
 
-    @Override
-    public void run() {
-        try {
-            scan();
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public void scan() throws FileNotFoundException, InterruptedException {
+    public <T extends BufferLineProcessor> void scan(Class<T> clazz)
+        throws FileNotFoundException, InterruptedException, ExecutionException, IllegalAccessException,
+               InstantiationException, NoSuchMethodException, InvocationTargetException {
         ExecutorService executorService = Executors.newFixedThreadPool(concurrentNum + 1);
-        executorService.submit(new Reader(new FileInputStream(file)));
+        Future future = executorService.submit(new Reader(new FileInputStream(file)));
         for (int i = 0; i < concurrentNum; ++i) {
-            executorService.submit(new Processor());
+            BufferLineProcessor processor =
+                clazz.getDeclaredConstructor(BlockingQueue.class, BlockingQueue.class)
+                    .newInstance(freeBufferBlockingQueue, bufferBlockingQueue);
+            executorService.submit(processor);
         }
         executorService.shutdown();
+        // wait for reader to exit
+        future.get();
+
+        // send empty ByteBuffer to notify processors to exit
+        for (int i = 0; i < concurrentNum; ++i) {
+            bufferBlockingQueue.put(ByteBuffer.allocate(0));
+        }
+
         executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
     }
 
-    protected abstract void processLine(byte[] a, int i, int j, int limit);
+    public <T extends BufferLineProcessor, R> List<R> scan(Class<T> clazz, R result)
+        throws FileNotFoundException, InterruptedException, ExecutionException, IllegalAccessException,
+               InstantiationException, NoSuchMethodException, InvocationTargetException {
+        ExecutorService executorService = Executors.newFixedThreadPool(concurrentNum + 1);
+        Future future = executorService.submit(new Reader(new FileInputStream(file)));
 
-    private int processLine(byte[] a, int i, int limit) {
-        int j = i;
-        while (a[j] != '\n' && j < limit) {
-            ++j;
+        List<Future<R>> processorResultFutures = new ArrayList<>(concurrentNum);
+        for (int i = 0; i < concurrentNum; ++i) {
+            BufferLineProcessor processor =
+                clazz.getDeclaredConstructor(BlockingQueue.class, BlockingQueue.class)
+                    .newInstance(freeBufferBlockingQueue, bufferBlockingQueue);
+
+            processorResultFutures.add(executorService.submit(processor, result));
         }
-        processLine(a, i, j - 1, limit);
-        if (j == limit) { return -1; }
-        return j + 1;
+        executorService.shutdown();
+        // wait for reader to exit
+        future.get();
+
+        // send empty ByteBuffer to notify processors to exit
+        for (int i = 0; i < concurrentNum; ++i) {
+            bufferBlockingQueue.put(ByteBuffer.allocate(0));
+        }
+
+        List<R> processorResults = new ArrayList<>(concurrentNum);
+        for (int i = 0; i < concurrentNum; ++i) {
+            processorResults.add(processorResultFutures.get(i).get());
+        }
+
+        return processorResults;
     }
 
     private class Reader implements Runnable {
@@ -121,25 +152,6 @@ public abstract class LineProcessor implements Runnable {
             buffer.limit(readSize);
 
             bufferBlockingQueue.put(buffer);
-        }
-    }
-
-    private class Processor implements Runnable {
-
-        @Override
-        public void run() {
-            try {
-                process(bufferBlockingQueue.take());
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-
-        private void process(ByteBuffer buffer) {
-            byte[] inner = buffer.array();
-            int limit = buffer.limit();
-            int i = 0;
-            while ((i = processLine(inner, i, limit)) != -1) { ; }
         }
     }
 }
