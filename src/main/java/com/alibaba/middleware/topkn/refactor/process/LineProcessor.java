@@ -1,5 +1,6 @@
 package com.alibaba.middleware.topkn.refactor.process;
 
+import com.alibaba.middleware.topkn.refactor.Constants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -23,9 +24,6 @@ import java.util.concurrent.TimeUnit;
 public class LineProcessor {
     private static final Logger logger = LoggerFactory.getLogger(LineProcessor.class);
 
-    private static final int BUFFER_SIZE = 2 * 1024 * 1024;
-    private static final int BUFFER_SIZE_WITH_MARGIN = BUFFER_SIZE + 256;
-
     private int concurrentNum;
 
     private File file;
@@ -42,7 +40,7 @@ public class LineProcessor {
 
     private void prepareByteBuffers() {
         for (int i = 0; i < concurrentNum * 2; ++i) {
-            freeBufferBlockingQueue.add(ByteBuffer.allocate(BUFFER_SIZE_WITH_MARGIN));
+            freeBufferBlockingQueue.add(ByteBuffer.allocate(Constants.BUFFER_SIZE_WITH_MARGIN));
         }
     }
 
@@ -80,7 +78,7 @@ public class LineProcessor {
         public void run() {
             try {
                 while (fileInputStream.available() != 0) {
-                    readNext();
+                    readNextSegment();
                 }
             } catch (IOException e) {
                 e.printStackTrace();
@@ -102,16 +100,17 @@ public class LineProcessor {
             return count == 0 ? -1 : count;
         }
 
-        private void readNext() throws InterruptedException, IOException {
+        private void readNextSegment() throws IOException, InterruptedException {
             ByteBuffer buffer = freeBufferBlockingQueue.take();
+
             buffer.clear();
             byte[] inner = buffer.array();
-            int readSize = fileInputStream.read(inner, 0, BUFFER_SIZE);
+            int readSize = fileInputStream.read(inner, 0, Constants.BUFFER_SIZE);
 
             // read to next '\n'
-            if (readSize == BUFFER_SIZE) {
-                if (inner[BUFFER_SIZE - 1] != '\n') {
-                    int r = readToNext(fileInputStream, inner, BUFFER_SIZE, '\n');
+            if (readSize == Constants.BUFFER_SIZE) {
+                if (inner[Constants.BUFFER_SIZE - 1] != '\n') {
+                    int r = readToNext(fileInputStream, inner, Constants.BUFFER_SIZE, '\n');
                     if (r != -1) {
                         readSize += r;
                     }

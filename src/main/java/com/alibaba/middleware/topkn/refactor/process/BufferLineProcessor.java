@@ -9,7 +9,8 @@ import java.util.concurrent.BlockingQueue;
 public abstract class BufferLineProcessor implements Runnable {
     private BlockingQueue<ByteBuffer> freeBufferBlockingQueue, bufferBlockingQueue;
 
-    public BufferLineProcessor(BlockingQueue<ByteBuffer> freeBufferBlockingQueue,
+    public BufferLineProcessor(
+        BlockingQueue<ByteBuffer> freeBufferBlockingQueue,
         BlockingQueue<ByteBuffer> bufferBlockingQueue) {
         this.freeBufferBlockingQueue = freeBufferBlockingQueue;
         this.bufferBlockingQueue = bufferBlockingQueue;
@@ -20,6 +21,7 @@ public abstract class BufferLineProcessor implements Runnable {
         try {
             while (true) {
                 ByteBuffer buffer = bufferBlockingQueue.take();
+
                 // exit on empty buffer
                 if (buffer.capacity() == 0) {
                     return;

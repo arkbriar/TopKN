@@ -66,6 +66,9 @@ public class BucketMapper {
 
         assert atomicIntegerArray.get(0) + atomicIntegerArray.get(1) == 343739;
         assert sum == 80000000;
+
+        logger.info("" + (atomicIntegerArray.get(0) + atomicIntegerArray.get(1)));
+        logger.info("" + sum);
     }
 
     public AtomicIntegerArray getAtomicIntegerArray() {
@@ -107,7 +110,8 @@ public class BucketMapper {
     }
 
     private class BucketBufferLineProcessor extends BufferLineProcessor {
-        public BucketBufferLineProcessor(BlockingQueue<ByteBuffer> freeBufferBlockingQueue,
+        public BucketBufferLineProcessor(
+            BlockingQueue<ByteBuffer> freeBufferBlockingQueue,
             BlockingQueue<ByteBuffer> bufferBlockingQueue) {
             super(freeBufferBlockingQueue, bufferBlockingQueue);
         }

@@ -10,9 +10,7 @@ import org.slf4j.LoggerFactory;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -118,8 +116,8 @@ public class StringListReader {
         }
 
         private boolean bucketsContains(int[] buckets, int idx) {
-            for (int i = 0; i < buckets.length; ++ i) {
-                if (buckets[i] == idx) return true;
+            for (int i = 0; i < buckets.length; ++i) {
+                if (buckets[i] == idx) { return true; }
             }
             return false;
         }
