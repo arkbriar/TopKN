@@ -120,6 +120,8 @@ public class TopknWorker implements Runnable {
 
     private List<String> readBlocksFromDisk(
         List<BucketMeta> metas, List<String> dataSplits, int n) {
+        if (metas.isEmpty()) { return new ArrayList<>(); }
+
         List<BufferedBucket> buckets = new ArrayList<>(metas.size());
         for (BucketMeta meta : metas) {
             buckets.add(new BufferedBucket(meta, BufferedBucket.UNLIMITED));

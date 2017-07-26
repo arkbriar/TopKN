@@ -16,6 +16,7 @@ import java.net.InetSocketAddress;
 import java.nio.channels.ServerSocketChannel;
 import java.nio.channels.SocketChannel;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
@@ -51,6 +52,14 @@ public class TopknMaster implements Runnable {
         master.run();
     }
 
+    private static List<String> repeatStringOfOneCharacter(int n, char c) {
+        List<String> res = new ArrayList<>(n);
+        for (int i = 0; i < n; ++i) {
+            res.add("" + c);
+        }
+        return res;
+    }
+
     @Override
     public void run() {
         try {
@@ -81,16 +90,22 @@ public class TopknMaster implements Runnable {
         logger.info("Data indices are all read! Start prepare block requests...");
 
         List<BucketBlockReadRequest> readRequests = findBlocksAndConstructBlockReadRequests(k, n);
+        List<List<String>> preConstructBlocks = removeConstructableRequests(readRequests);
 
         logger.info("Reading blocks...");
 
         List<BucketBlockResult> blockResults = readBlocks(readRequests);
+        List<List<String>> blocks = new ArrayList<>(blockResults.size());
+        for (int i = 0; i < blockResults.size(); ++i) {
+            List<String> block = preConstructBlocks.get(i);
+            block.addAll(blockResults.get(i).getBlock());
+            blocks.add(block);
+        }
 
         logger.info("All blocks're read.");
 
         List<String> merged = new MergeSorter(StringComparator.getInstance())
-            .merge(blockResults.get(0).getBlock(),
-                blockResults.get(1).getBlock(), kInMergedBlocks + n - 1);
+            .merge(blocks.get(0), blocks.get(1), kInMergedBlocks + n - 1);
         List<String> result = merged.subList(kInMergedBlocks - 1, kInMergedBlocks + n - 1);
 
         logger.info("Writing result to file " + resultFile);
@@ -160,6 +175,27 @@ public class TopknMaster implements Runnable {
         }
 
         return readRequests;
+    }
+
+    private List<List<String>> removeConstructableRequests(
+        List<BucketBlockReadRequest> readRequestList) {
+        List<List<String>> res = new ArrayList<>(readRequestList.size());
+        for (BucketBlockReadRequest readRequest : readRequestList) {
+            List<BucketMeta> metas = readRequest.getMetas();
+            List<String> block = new ArrayList<>();
+            Iterator<BucketMeta> it = metas.iterator();
+            while (it.hasNext()) {
+                BucketMeta meta = it.next();
+                if (meta.getStrLen() == 1) {
+                    logger.info("Pre-constructing blocks in bucket " + meta);
+                    block.addAll(
+                        repeatStringOfOneCharacter(meta.getSize(), meta.getLeadingCharacter()));
+                    it.remove();
+                }
+            }
+            res.add(block);
+        }
+        return res;
     }
 
     private class StartServerSocketTask implements Callable<SocketChannel> {
