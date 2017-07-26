@@ -36,7 +36,7 @@ public class BucketSorter {
     private final Semaphore available = new Semaphore(14700000, true);
     private String storeDir;
     private List<String> fileSplits;
-    private Map<Integer, Map<Character, BufferedBucket>> buckets;
+    private Map<Character, BufferedBucket>[] buckets;
     private List<BufferedBucket> bucketList = new ArrayList<>(128 * 36);
     private DataIndex index;
 
@@ -52,11 +52,11 @@ public class BucketSorter {
     }
 
     public void initializeBuckets() {
-        buckets = new HashMap<>();
+        buckets = new Map[128];
         for (int i = 1; i <= 128; ++i) {
             Map<Character, BufferedBucket> characterBucketMap =
                 new HashMap<Character, BufferedBucket>();
-            buckets.put(i, characterBucketMap);
+            buckets[i - 1] = characterBucketMap;
             for (char c : CHARACTERS) {
                 BufferedBucket bucket =
                     new BufferedBucket(i, c, getBucketUnsortedBlock(i, c), BUCKET_LIMIT);
@@ -228,7 +228,7 @@ public class BucketSorter {
         }
 
         protected void processLine(String line) {
-            buckets.get(line.length()).get(line.charAt(0)).increaseSize();
+            buckets[line.length() - 1].get(line.charAt(0)).increaseSize();
         }
 
         private void mapIntoBuckets(String filePath) {
@@ -269,7 +269,7 @@ public class BucketSorter {
 
         @Override
         protected void processLine(String line) {
-            buckets.get(line.length()).get(line.charAt(0)).add(line);
+            buckets[line.length() - 1].get(line.charAt(0)).add(line);
         }
     }
 

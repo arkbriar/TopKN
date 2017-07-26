@@ -12,7 +12,6 @@ import java.nio.channels.SocketChannel;
  * Created by Shunjie Ding on 26/07/2017.
  */
 public class SocketUtils {
-
     private static final int READ_BUFFER_SIZE = 1024 * 1024;
 
     public static <T> T read(SocketChannel socketChannel, Class<T> clazz) throws IOException {
@@ -42,9 +41,10 @@ public class SocketUtils {
         return new ObjectMapper().readValue(res, clazz);
     }
 
-    public static <T> void write(SocketChannel socketChannel, T t)
-        throws IOException {
-        if (t == null) { return; }
+    public static <T> void write(SocketChannel socketChannel, T t) throws IOException {
+        if (t == null) {
+            return;
+        }
 
         ObjectMapper mapper = new ObjectMapper();
         byte[] bytes = mapper.writeValueAsBytes(t);

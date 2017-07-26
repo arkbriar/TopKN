@@ -15,7 +15,9 @@ public class FileUtils {
     public static void flushToDisk(final List<String> strings, String filePath) throws IOException {
         Path destFilePath = Paths.get(filePath);
         Path parentPath = destFilePath.toAbsolutePath().getParent();
-        if (parentPath != null) { Files.createDirectories(parentPath); }
+        if (parentPath != null) {
+            Files.createDirectories(parentPath);
+        }
 
         File destFile = destFilePath.toFile();
         if (!destFile.exists()) {

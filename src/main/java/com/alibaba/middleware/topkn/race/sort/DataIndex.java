@@ -18,10 +18,10 @@ public class DataIndex {
 
     private DataIndex() {}
 
-    public DataIndex(Map<Integer, Map<Character, BufferedBucket>> buckets) {
+    public DataIndex(Map<Character, BufferedBucket>[] buckets) {
         int count = 0;
         for (int i = 1; i <= 128; ++i) {
-            Map<Character, BufferedBucket> sBuckets = buckets.get(i);
+            Map<Character, BufferedBucket> sBuckets = buckets[i - 1];
             for (Character c : "0123456789abcdefghijklmnopqrstuvwxyz".toCharArray()) {
                 metas.add(sBuckets.get(c).getMeta());
             }

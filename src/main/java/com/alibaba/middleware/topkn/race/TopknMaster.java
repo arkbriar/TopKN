@@ -178,6 +178,8 @@ public class TopknMaster implements Runnable {
 
             SocketChannel socketChannel = serverSocketChannel.accept();
 
+            serverSocketChannel.close();
+
             return socketChannel;
         }
     }

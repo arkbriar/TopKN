@@ -154,7 +154,9 @@ public class TopknWorker implements Runnable {
     }
 
     private DataIndex readDataIndex(File indexFile) {
-        if (!indexFile.exists()) { return null; }
+        if (!indexFile.exists()) {
+            return null;
+        }
         ObjectMapper mapper = new ObjectMapper();
         try {
             return mapper.readValue(indexFile, DataIndex.class);
