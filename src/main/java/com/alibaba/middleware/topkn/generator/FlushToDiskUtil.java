@@ -9,8 +9,7 @@ import java.nio.channels.FileChannel;
 import java.nio.channels.FileChannel.MapMode;
 
 /**
- * 写出文件的工具类
- * Created by wanshao on 2017/6/5.
+ * 写出文件的工具类 Created by wanshao on 2017/6/5.
  */
 public class FlushToDiskUtil {
     public static void main(String[] args) {}

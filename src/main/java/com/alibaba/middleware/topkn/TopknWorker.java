@@ -4,11 +4,10 @@ import com.alibaba.middleware.topkn.core.Buckets;
 import com.alibaba.middleware.topkn.core.FileSegmentLoader;
 import com.alibaba.middleware.topkn.core.IndexBuilder;
 import com.alibaba.middleware.topkn.utils.FileUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.alibaba.middleware.topkn.utils.Logger;
+import com.alibaba.middleware.topkn.utils.LoggerFactory;
 
 import java.io.IOException;
-import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
@@ -46,26 +45,25 @@ public class TopknWorker {
     private void run() throws InterruptedException, IOException {
         boolean indexBuilt = false;
         while (true) {
-            try {
-                logger.info("Connecting to master at " + masterHost + ":" + masterPort);
-                connect();
+            // try {
+            logger.info("Connecting to master at " + masterHost + ":" + masterPort);
+            // connect();
 
-                logger.info("Building index ...");
-                if (!indexBuilt) {
-                    buildIndex();
-                    indexBuilt = true;
-                }
-                logger.info("Index built.");
-
-                sendIndex();
-
-
-                close();
-                return;
-            } catch (ConnectException e) {
-                if (!indexBuilt) Buckets.getInstance().clear();
-                Thread.sleep(15);
+            logger.info("Building index ...");
+            if (!indexBuilt) {
+                buildIndex();
+                indexBuilt = true;
             }
+            logger.info("Index built.");
+
+            // sendIndex();
+
+            // close();
+            return;
+            // } catch (ConnectException e) {
+            //     if (!indexBuilt) { Buckets.getInstance().clear(); }
+            //     Thread.sleep(15);
+            // }
         }
     }
 
@@ -78,9 +76,9 @@ public class TopknWorker {
         ExecutorService executorService = Executors.newFixedThreadPool(Constants.NUM_CORES);
 
         List<String> filePaths = FileUtils.listTextFilesInDir(dataDir);
+        FileSegmentLoader fileSegmentLoader = new FileSegmentLoader(filePaths, Constants.SEGMENT_SIZE);
         for (int i = 0; i < Constants.NUM_CORES; ++i) {
-            executorService.submit(new IndexBuilder(
-                new FileSegmentLoader(filePaths, Constants.SEGMENT_SIZE), Constants.SEGMENT_SIZE));
+            executorService.submit(new IndexBuilder(fileSegmentLoader, Constants.SEGMENT_SIZE));
         }
 
         executorService.shutdown();

@@ -8,15 +8,11 @@ import java.util.List;
  * Created by Shunjie Ding on 27/07/2017.
  */
 public class FileSegmentLoader {
-    private List<String> filePaths;
-
-    private Iterator<String> currentFilePathIter;
-
-    private File currentFile;
-
-    private long currentOffset;
-
     private final long segmentSize;
+    private List<String> filePaths;
+    private Iterator<String> currentFilePathIter;
+    private File currentFile;
+    private long currentOffset;
 
     public FileSegmentLoader(List<String> filePaths, long segmentSize) {
         this.filePaths = filePaths;
@@ -37,8 +33,7 @@ public class FileSegmentLoader {
     public synchronized FileSegment nextFileSegment() {
         if (currentOffset >= currentFile.length()) {
             currentFile = nextFile();
-            if (currentFile == null)
-                return null;
+            if (currentFile == null) { return null; }
         }
         long prevOffset = currentOffset;
         currentOffset += segmentSize;

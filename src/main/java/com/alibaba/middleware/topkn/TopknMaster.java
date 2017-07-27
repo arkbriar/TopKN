@@ -1,7 +1,8 @@
 package com.alibaba.middleware.topkn;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+
+import com.alibaba.middleware.topkn.utils.Logger;
+import com.alibaba.middleware.topkn.utils.LoggerFactory;
 
 /**
  * Created by Shunjie Ding on 27/07/2017.

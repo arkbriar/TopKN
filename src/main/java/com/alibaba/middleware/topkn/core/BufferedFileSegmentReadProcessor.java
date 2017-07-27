@@ -1,6 +1,5 @@
 package com.alibaba.middleware.topkn.core;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 
@@ -8,12 +7,9 @@ import java.io.RandomAccessFile;
  * Created by Shunjie Ding on 27/07/2017.
  */
 public abstract class BufferedFileSegmentReadProcessor implements Runnable {
-    private FileSegmentLoader fileSegmentLoader;
-
-    private int bufferSize;
-
     private final int bufferMargin = 1024;
-
+    private FileSegmentLoader fileSegmentLoader;
+    private int bufferSize;
     private byte[] readBuffer;
 
     public BufferedFileSegmentReadProcessor(FileSegmentLoader fileSegmentLoader, int bufferSize) {

@@ -1,11 +1,11 @@
 package com.alibaba.middleware.topkn.generator;
 
+import com.google.common.primitives.Bytes;
+
 import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
-
-import com.google.common.primitives.Bytes;
 
 /**
  * Created by wanshao on 2017/6/27.
@@ -29,28 +29,8 @@ public class DataGeneratorTopKN {
         }
     }
 
-    public static class DataGenerator implements Runnable {
-        private String filePath;
-
-        DataGenerator(String filePath) {
-            this.filePath = filePath;
-        }
-
-        @Override
-        public void run() {
-            // 1万行约628KB,实际写入大小为lineSize*round，这里round是为了分批处理，避免耗尽内存
-            int lineSize = 10000; // 10000
-            int round = 1600; // 16000
-            for (int i = 0; i < round; i++) {
-                byte[] byteArray = generateCharData(lineSize);
-                FlushToDiskUtil.flushToDisk(byteArray, filePath);
-            }
-        }
-    }
-
     /**
      * 生成指定行数的随机字符文本，\n来换行
-     * @param lineSize
      */
     private static byte[] generateCharData(long lineSize) {
         SecureRandom random = new SecureRandom();
@@ -75,5 +55,24 @@ public class DataGeneratorTopKN {
             throw new ArithmeticException("Math.abs(Integer.MIN_VALUE)");
         }
         return Math.abs(x);
+    }
+
+    public static class DataGenerator implements Runnable {
+        private String filePath;
+
+        DataGenerator(String filePath) {
+            this.filePath = filePath;
+        }
+
+        @Override
+        public void run() {
+            // 1万行约628KB,实际写入大小为lineSize*round，这里round是为了分批处理，避免耗尽内存
+            int lineSize = 10000; // 10000
+            int round = 1600; // 16000
+            for (int i = 0; i < round; i++) {
+                byte[] byteArray = generateCharData(lineSize);
+                FlushToDiskUtil.flushToDisk(byteArray, filePath);
+            }
+        }
     }
 }
