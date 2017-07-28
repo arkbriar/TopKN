@@ -142,9 +142,8 @@ public class TopknMaster implements Runnable {
         ByteBuffer readBuffer = ByteBuffer.allocate(Constants.READ_BUFFER_SIZE);
         readBuffer.limit(4 * Constants.BUCKET_SIZE);
 
-        int readSize = 0;
-        while (readSize < 4 * Constants.BUCKET_SIZE) {
-            readSize += socketChannel.read(readBuffer);
+        while (readBuffer.hasRemaining()) {
+            socketChannel.read(readBuffer);
         }
         readBuffer.flip();
 
@@ -180,10 +179,9 @@ public class TopknMaster implements Runnable {
         readBuffer.clear();
 
         logger.info("Reading result from worker, size to read %d...", size);
-        int readSize = 0;
         readBuffer.limit(size);
-        while (readSize < size) {
-            readSize += socketChannel.read(readBuffer);
+        while (readBuffer.hasRemaining()) {
+            socketChannel.read(readBuffer);
         }
         readBuffer.flip();
 
