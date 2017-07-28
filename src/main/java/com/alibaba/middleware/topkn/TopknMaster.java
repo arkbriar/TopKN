@@ -25,9 +25,11 @@ import java.util.concurrent.Executors;
  */
 public class TopknMaster implements Runnable {
     private static final Logger logger = LoggerFactory.getLogger(TopknMaster.class);
-    private static final CountDownLatch waitingBucketLatch = new CountDownLatch(Constants.NUM_WORKERS);
+    private static final CountDownLatch waitingBucketLatch =
+        new CountDownLatch(Constants.NUM_WORKERS);
     private static final CountDownLatch buildingIndexLatch = new CountDownLatch(1);
-    private static final CountDownLatch waitingResultLatch = new CountDownLatch(Constants.NUM_WORKERS);
+    private static final CountDownLatch waitingResultLatch =
+        new CountDownLatch(Constants.NUM_WORKERS);
     private static final List<String> results = new ArrayList<>();
     private static boolean indexBuilt = false;
     private static Index index;
@@ -51,7 +53,6 @@ public class TopknMaster implements Runnable {
         Index.writeToFile(index, Constants.MIDDLE_DIR + "/index.bin");
         return index;
     }
-
 
     public static void main(String[] args) throws IOException, InterruptedException {
         k = Long.valueOf(args[0]);
@@ -90,8 +91,7 @@ public class TopknMaster implements Runnable {
             logger.info("Index built!");
         }
 
-        int lower = index.BinarySearch((int) (k + 1)),
-            upper = index.BinarySearch((int) (k + n));
+        int lower = index.BinarySearch((int) (k + 1)), upper = index.BinarySearch((int) (k + n));
         logger.info("Results are lied in bucket %d to %d, start querying...", lower, upper);
         logger.info("Waiting for candidates...");
         waitingResultLatch.await();
@@ -103,7 +103,8 @@ public class TopknMaster implements Runnable {
         File file = new File(Constants.RESULT_DIR + "/res.txt");
         logger.info("Get results, writing to %s...", file.getAbsolutePath());
 
-        if (!file.exists()) file.createNewFile();
+        if (!file.exists())
+            file.createNewFile();
         try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {
             int startIndex = (int) (k - index.getRangeSum(lower - 1));
             for (int i = startIndex; i < startIndex + n; ++i) {
@@ -190,7 +191,9 @@ public class TopknMaster implements Runnable {
         int pos = 0;
         while (pos < readBuffer.limit()) {
             int endPos = pos + 1;
-            while (buffer[endPos] != '\n') { endPos++; }
+            while (buffer[endPos] != '\n') {
+                endPos++;
+            }
             synchronized (results) {
                 results.add(new String(buffer, pos, endPos - pos));
             }

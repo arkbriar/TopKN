@@ -10,8 +10,7 @@ public class QueryExecutor extends BufferedFileSegmentReadProcessor {
 
     private int lower, upper;
 
-    public QueryExecutor(
-        FileSegmentLoader fileSegmentLoader, int bufferSize, int lower, int upper,
+    public QueryExecutor(FileSegmentLoader fileSegmentLoader, int bufferSize, int lower, int upper,
         ByteBuffer resultBuffer) {
         super(fileSegmentLoader, bufferSize);
         this.lower = lower;

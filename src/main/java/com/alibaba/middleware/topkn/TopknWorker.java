@@ -126,7 +126,8 @@ public class TopknWorker {
         // Write the size
         writeBuffer.putInt(writeBuffer.limit() - 4);
         writeBuffer.position(0);
-        logger.info("Query done! Sending result to master: total size %d...", writeBuffer.limit() - 4);
+        logger.info(
+            "Query done! Sending result to master: total size %d...", writeBuffer.limit() - 4);
         while (writeBuffer.hasRemaining()) {
             socketChannel.write(writeBuffer);
         }

@@ -23,5 +23,5 @@ public class Constants {
     public static final String MIDDLE_DIR = "/exp/topkn/runtime/";
     public static final String RESULT_DIR = "/exp/topkn/runtime/";
 
-    public static final int[] SERVER_PORTS = new int[]{5527, 5528};
+    public static final int[] SERVER_PORTS = new int[] {5527, 5528};
 }

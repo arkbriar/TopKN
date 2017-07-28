@@ -17,7 +17,7 @@ import java.util.List;
 public class Index {
     private static final Logger logger = LoggerFactory.getLogger(Index.class);
 
-    private static final byte[] MAGIC_CODE = new byte[]{0x0, 0x0, 0x0, 0x0, 0xb, 0xc, 0x1, 0xd};
+    private static final byte[] MAGIC_CODE = new byte[] {0x0, 0x0, 0x0, 0x0, 0xb, 0xc, 0x1, 0xd};
     // count of index i is the sum of sizes of buckets from [0, i]
     private int[] bucketRangeSums = new int[Constants.BUCKET_SIZE];
 
@@ -75,7 +75,9 @@ public class Index {
 
     public static void writeToFile(Index index, String filePath) throws IOException {
         File file = new File(filePath);
-        if (!file.exists()) { file.createNewFile(); }
+        if (!file.exists()) {
+            file.createNewFile();
+        }
 
         try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {
             fileOutputStream.write(MAGIC_CODE);
