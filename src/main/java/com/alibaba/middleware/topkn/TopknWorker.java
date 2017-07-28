@@ -57,7 +57,12 @@ public class TopknWorker {
                 return;
             } catch (ConnectException e) {
                 // Reconnect on ConnectException
-                Thread.sleep(15);
+                Thread.sleep(100);
+            } catch (RuntimeException e) {
+                // print runtime exception as ExecutorService.submit
+                // does not install an exception handler on threads it starts
+                e.printStackTrace();
+                throw e;
             }
         }
     }
@@ -191,6 +196,11 @@ public class TopknWorker {
                 e.printStackTrace();
             } catch (InterruptedException e) {
                 e.printStackTrace();
+            } catch (RuntimeException e) {
+                // print runtime exception as ExecutorService.submit
+                // does not install an exception handler on threads it starts
+                e.printStackTrace();
+                throw e;
             }
         }
     }

@@ -225,6 +225,11 @@ public class TopknMaster implements Runnable {
             e.printStackTrace();
         } catch (InterruptedException e) {
             e.printStackTrace();
+        } catch (RuntimeException e) {
+            // print runtime exception as ExecutorService.submit
+            // does not install an exception handler on threads it starts
+            e.printStackTrace();
+            throw e;
         }
     }
 }
