@@ -78,6 +78,7 @@ public class TopknMaster implements Runnable {
             masters.add(master);
             executorService.submit(master);
         }
+        executorService.shutdown();
 
         // Build index if not found
         if (!indexBuilt) {
