@@ -1,6 +1,5 @@
 package com.alibaba.middleware.topkn;
 
-
 import com.alibaba.middleware.topkn.utils.Logger;
 import com.alibaba.middleware.topkn.utils.LoggerFactory;
 

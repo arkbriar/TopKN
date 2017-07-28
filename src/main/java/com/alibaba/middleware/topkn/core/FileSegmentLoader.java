@@ -33,7 +33,9 @@ public class FileSegmentLoader {
     public synchronized FileSegment nextFileSegment() {
         if (currentOffset >= currentFile.length()) {
             currentFile = nextFile();
-            if (currentFile == null) { return null; }
+            if (currentFile == null) {
+                return null;
+            }
         }
         long prevOffset = currentOffset;
         currentOffset += segmentSize;

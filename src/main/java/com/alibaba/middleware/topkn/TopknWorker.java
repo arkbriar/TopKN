@@ -3,11 +3,13 @@ package com.alibaba.middleware.topkn;
 import com.alibaba.middleware.topkn.core.Buckets;
 import com.alibaba.middleware.topkn.core.FileSegmentLoader;
 import com.alibaba.middleware.topkn.core.IndexBuilder;
+import com.alibaba.middleware.topkn.core.QueryExecutor;
 import com.alibaba.middleware.topkn.utils.FileUtils;
 import com.alibaba.middleware.topkn.utils.Logger;
 import com.alibaba.middleware.topkn.utils.LoggerFactory;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
@@ -45,25 +47,31 @@ public class TopknWorker {
     private void run() throws InterruptedException, IOException {
         boolean indexBuilt = false;
         while (true) {
-            // try {
-            logger.info("Connecting to master at " + masterHost + ":" + masterPort);
-            // connect();
+            try {
+                logger.info("Connecting to master at " + masterHost + ":" + masterPort);
+                connect();
 
-            logger.info("Building index ...");
-            if (!indexBuilt) {
-                buildIndex();
-                indexBuilt = true;
+                logger.info("Building index...");
+                if (!indexBuilt) {
+                    buildIndex();
+                    indexBuilt = true;
+                }
+                logger.info("Index built.");
+
+                logger.info("Sending index to master...");
+                sendIndex();
+
+                queryRangeAndSend();
+
+                close();
+                return;
+            } catch (ConnectException e) {
+                // reconnect on ConnectException
+                if (!indexBuilt) {
+                    Buckets.getInstance().clear();
+                }
+                Thread.sleep(15);
             }
-            logger.info("Index built.");
-
-            // sendIndex();
-
-            // close();
-            return;
-            // } catch (ConnectException e) {
-            //     if (!indexBuilt) { Buckets.getInstance().clear(); }
-            //     Thread.sleep(15);
-            // }
         }
     }
 
@@ -76,7 +84,8 @@ public class TopknWorker {
         ExecutorService executorService = Executors.newFixedThreadPool(Constants.NUM_CORES);
 
         List<String> filePaths = FileUtils.listTextFilesInDir(dataDir);
-        FileSegmentLoader fileSegmentLoader = new FileSegmentLoader(filePaths, Constants.SEGMENT_SIZE);
+        FileSegmentLoader fileSegmentLoader =
+            new FileSegmentLoader(filePaths, Constants.SEGMENT_SIZE);
         for (int i = 0; i < Constants.NUM_CORES; ++i) {
             executorService.submit(new IndexBuilder(fileSegmentLoader, Constants.SEGMENT_SIZE));
         }
@@ -96,8 +105,54 @@ public class TopknWorker {
         }
     }
 
-    private void queryRangeAndSend() {
+    private void queryRangeAndSend() throws IOException, InterruptedException {
+        // get query request
+        ByteBuffer readWriteBuffer = ByteBuffer.allocate(Constants.RESULT_BUFFER_SIZE);
 
+        // read op code
+        readWriteBuffer.limit(4);
+        socketChannel.read(readWriteBuffer);
+        readWriteBuffer.flip();
+        int op = readWriteBuffer.getInt();
+        assert op == Constants.OP_QUERY;
+        readWriteBuffer.clear();
+
+        // read the values
+        readWriteBuffer.limit(8);
+        socketChannel.read(readWriteBuffer);
+
+        int lower = readWriteBuffer.getInt(), upper = readWriteBuffer.getInt();
+
+        logger.info("Get query request from master in [%d, %d], starting...", lower, upper);
+
+        // query and send results
+        readWriteBuffer.clear();
+        readWriteBuffer.putInt(Constants.OP_QUERY);
+        queryRange(lower, upper, readWriteBuffer);
+
+        readWriteBuffer.flip();
+        logger.info("Query done! Sending...");
+
+        while (readWriteBuffer.hasRemaining()) {
+            socketChannel.write(readWriteBuffer);
+        }
+    }
+
+    private void queryRange(int lower, int upper, ByteBuffer resultBuffer)
+        throws InterruptedException {
+        ExecutorService executorService = Executors.newFixedThreadPool(Constants.NUM_CORES);
+
+        List<String> filePaths = FileUtils.listTextFilesInDir(dataDir);
+        FileSegmentLoader fileSegmentLoader =
+            new FileSegmentLoader(filePaths, Constants.SEGMENT_SIZE);
+        for (int i = 0; i < Constants.NUM_CORES; ++i) {
+            QueryExecutor executor = new QueryExecutor(
+                fileSegmentLoader, Constants.SEGMENT_SIZE, lower, upper, resultBuffer);
+            executorService.submit(executor);
+        }
+
+        executorService.shutdown();
+        executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
     }
 
     private void close() throws IOException {

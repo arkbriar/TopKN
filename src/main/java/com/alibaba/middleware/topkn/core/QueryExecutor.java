@@ -1,18 +1,23 @@
 package com.alibaba.middleware.topkn.core;
 
-import com.alibaba.middleware.topkn.utils.Logger;
-import com.alibaba.middleware.topkn.utils.LoggerFactory;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
- * Created by Shunjie Ding on 27/07/2017.
+ * Created by Shunjie Ding on 28/07/2017.
  */
-public class IndexBuilder extends BufferedFileSegmentReadProcessor {
-    private static final Logger logger = LoggerFactory.getLogger(IndexBuilder.class);
+public class QueryExecutor extends BufferedFileSegmentReadProcessor {
+    private final ByteBuffer resultBuffer;
 
-    private Buckets buckets = Buckets.getInstance();
+    private int lower, upper;
 
-    public IndexBuilder(FileSegmentLoader fileSegmentLoader, int bufferSize) {
+    public QueryExecutor(FileSegmentLoader fileSegmentLoader, int bufferSize, int lower, int upper,
+        ByteBuffer resultBuffer) {
         super(fileSegmentLoader, bufferSize);
+        this.lower = lower;
+        this.upper = upper;
+        this.resultBuffer = resultBuffer;
     }
 
     @Override
@@ -35,10 +40,17 @@ public class IndexBuilder extends BufferedFileSegmentReadProcessor {
             }
 
             int len = endPos - pos;
+            int index;
             if (len == 1) {
-                buckets.increaseBucketCount(len, readBuffer[pos], (byte) 0);
+                index = Buckets.getBucketIndex(len, readBuffer[pos], (byte) 0);
             } else {
-                buckets.increaseBucketCount(len, readBuffer[pos], readBuffer[pos + 1]);
+                index = Buckets.getBucketIndex(len, readBuffer[pos], readBuffer[pos + 1]);
+            }
+
+            if (index >= lower && index <= upper) {
+                synchronized (resultBuffer) {
+                    resultBuffer.put(readBuffer, pos, len + 1);
+                }
             }
 
             pos = endPos + 1;

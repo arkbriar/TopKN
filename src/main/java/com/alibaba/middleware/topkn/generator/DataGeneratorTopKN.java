@@ -6,6 +6,9 @@ import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Created by wanshao on 2017/6/27.
@@ -18,15 +21,16 @@ public class DataGeneratorTopKN {
         }
 
         List<Thread> threads = new ArrayList<>(10);
+
+        int coreNum = Runtime.getRuntime().availableProcessors();
+        ExecutorService executorService = Executors.newFixedThreadPool(Math.min(coreNum, 10));
+
         for (String filePath : filePaths) {
-            Thread thread = new Thread(new DataGenerator(filePath));
-            thread.start();
-            threads.add(thread);
+            executorService.submit(new DataGenerator(filePath));
         }
 
-        for (Thread t : threads) {
-            t.join();
-        }
+        executorService.shutdown();
+        executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
     }
 
     /**

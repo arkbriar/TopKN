@@ -22,8 +22,10 @@ public class Buckets {
         return b <= '9' ? b - '0' : b - 'a' + 10;
     }
 
-    private static int getBucketIndex(int len, byte first, byte second) {
-        if (len == 1) { return getByteIndex(first); } else {
+    public static int getBucketIndex(int len, byte first, byte second) {
+        if (len == 1) {
+            return getByteIndex(first);
+        } else {
             return (len - 1) * 36 * 36 + getByteIndex(first) * 36 + getByteIndex(second);
         }
     }
