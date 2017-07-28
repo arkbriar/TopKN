@@ -1,6 +1,6 @@
 package com.alibaba.middleware.topkn;
 
-import com.alibaba.middleware.topkn.core.Buckets;
+import com.alibaba.middleware.topkn.core.Bucket;
 import com.alibaba.middleware.topkn.core.FileSegmentLoader;
 import com.alibaba.middleware.topkn.core.IndexBuilder;
 import com.alibaba.middleware.topkn.core.QueryExecutor;
@@ -45,31 +45,18 @@ public class TopknWorker {
     }
 
     private void run() throws InterruptedException, IOException {
-        boolean indexBuilt = false;
         while (true) {
             try {
                 logger.info("Connecting to master at " + masterHost + ":" + masterPort);
                 connect();
 
-                logger.info("Building index...");
-                if (!indexBuilt) {
-                    buildIndex();
-                    indexBuilt = true;
-                }
-                logger.info("Index built.");
-
-                logger.info("Sending index to master...");
-                sendIndex();
-
-                queryRangeAndSend();
+                // listen requests and respond
+                listen();
 
                 close();
                 return;
             } catch (ConnectException e) {
                 // reconnect on ConnectException
-                if (!indexBuilt) {
-                    Buckets.getInstance().clear();
-                }
                 Thread.sleep(15);
             }
         }
@@ -78,6 +65,23 @@ public class TopknWorker {
     private void connect() throws IOException {
         socketChannel = SocketChannel.open(new InetSocketAddress(masterHost, masterPort));
         socketChannel.configureBlocking(true);
+    }
+
+    private void listen() throws InterruptedException {
+        Thread requestListener = new Thread(new RequestListener(socketChannel));
+        requestListener.run();
+
+        requestListener.join();
+    }
+
+    private void buildIndexAndSend() throws InterruptedException, IOException {
+        logger.info("Building index...");
+        buildIndex();
+        logger.info("Index built.");
+
+        logger.info("Sending index to master...");
+        sendIndex();
+        logger.info("Index sent.");
     }
 
     private void buildIndex() throws InterruptedException {
@@ -95,9 +99,8 @@ public class TopknWorker {
     }
 
     private void sendIndex() throws IOException {
-        ByteBuffer byteBuffer = ByteBuffer.allocate(4 + 4 * Constants.BUCKET_SIZE);
-        byteBuffer.putInt(Constants.OP_INDEX);
-        Buckets.getInstance().writeToBuffer(byteBuffer);
+        ByteBuffer byteBuffer = ByteBuffer.allocate(4 * Constants.BUCKET_SIZE);
+        Bucket.getGlobal().writeToBuffer(byteBuffer);
         byteBuffer.flip();
 
         while (byteBuffer.hasRemaining()) {
@@ -105,34 +108,20 @@ public class TopknWorker {
         }
     }
 
-    private void queryRangeAndSend() throws IOException, InterruptedException {
-        // get query request
+    private void queryRangeAndSend(int lower, int upper) throws IOException, InterruptedException {
         ByteBuffer readWriteBuffer = ByteBuffer.allocate(Constants.RESULT_BUFFER_SIZE);
 
-        // read op code
-        readWriteBuffer.limit(4);
-        socketChannel.read(readWriteBuffer);
-        readWriteBuffer.flip();
-        int op = readWriteBuffer.getInt();
-        assert op == Constants.OP_QUERY;
-        readWriteBuffer.clear();
-
-        // read the values
-        readWriteBuffer.limit(8);
-        socketChannel.read(readWriteBuffer);
-
-        int lower = readWriteBuffer.getInt(), upper = readWriteBuffer.getInt();
-
-        logger.info("Get query request from master in [%d, %d], starting...", lower, upper);
+        logger.info("Get query request from master in [%d, %d], start querying...", lower, upper);
 
         // query and send results
-        readWriteBuffer.clear();
-        readWriteBuffer.putInt(Constants.OP_QUERY);
+        readWriteBuffer.putInt(0);
         queryRange(lower, upper, readWriteBuffer);
 
-        readWriteBuffer.flip();
         logger.info("Query done! Sending...");
-
+        readWriteBuffer.flip();
+        // write the size
+        readWriteBuffer.putInt(readWriteBuffer.limit() - 4);
+        readWriteBuffer.position(0);
         while (readWriteBuffer.hasRemaining()) {
             socketChannel.write(readWriteBuffer);
         }
@@ -158,5 +147,44 @@ public class TopknWorker {
     private void close() throws IOException {
         socketChannel.close();
         socketChannel = null;
+    }
+
+    private class RequestListener implements Runnable {
+        private SocketChannel socketChannel;
+
+        RequestListener(SocketChannel socketChannel) {
+            this.socketChannel = socketChannel;
+        }
+
+        @Override
+        public void run() {
+            ByteBuffer readBuffer = ByteBuffer.allocate(Constants.READ_BUFFER_SIZE);
+            readBuffer.limit(4);
+            try {
+                while (socketChannel.read(readBuffer) != -1) {
+                    readBuffer.flip();
+                    int op = readBuffer.getInt();
+                    readBuffer.clear();
+
+                    if (op == Constants.OP_INDEX) {
+                        buildIndexAndSend();
+                    } else if (op == Constants.OP_QUERY) {
+                        readBuffer.clear();
+                        // read the values
+                        readBuffer.limit(8);
+                        socketChannel.read(readBuffer);
+                        int lower = readBuffer.getInt(), upper = readBuffer.getInt();
+
+                        queryRangeAndSend(lower, upper);
+                        // exit once result's sent
+                        return;
+                    }
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
     }
 }

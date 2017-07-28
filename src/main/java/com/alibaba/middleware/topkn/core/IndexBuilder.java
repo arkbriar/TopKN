@@ -9,7 +9,7 @@ import com.alibaba.middleware.topkn.utils.LoggerFactory;
 public class IndexBuilder extends BufferedFileSegmentReadProcessor {
     private static final Logger logger = LoggerFactory.getLogger(IndexBuilder.class);
 
-    private Buckets buckets = Buckets.getInstance();
+    private Bucket buckets = Bucket.getGlobal();
 
     public IndexBuilder(FileSegmentLoader fileSegmentLoader, int bufferSize) {
         super(fileSegmentLoader, bufferSize);

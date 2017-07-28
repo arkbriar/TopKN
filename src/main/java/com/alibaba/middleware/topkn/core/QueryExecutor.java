@@ -1,8 +1,6 @@
 package com.alibaba.middleware.topkn.core;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Created by Shunjie Ding on 28/07/2017.
@@ -12,7 +10,8 @@ public class QueryExecutor extends BufferedFileSegmentReadProcessor {
 
     private int lower, upper;
 
-    public QueryExecutor(FileSegmentLoader fileSegmentLoader, int bufferSize, int lower, int upper,
+    public QueryExecutor(
+        FileSegmentLoader fileSegmentLoader, int bufferSize, int lower, int upper,
         ByteBuffer resultBuffer) {
         super(fileSegmentLoader, bufferSize);
         this.lower = lower;
@@ -42,9 +41,9 @@ public class QueryExecutor extends BufferedFileSegmentReadProcessor {
             int len = endPos - pos;
             int index;
             if (len == 1) {
-                index = Buckets.getBucketIndex(len, readBuffer[pos], (byte) 0);
+                index = Bucket.getBucketIndex(len, readBuffer[pos], (byte) 0);
             } else {
-                index = Buckets.getBucketIndex(len, readBuffer[pos], readBuffer[pos + 1]);
+                index = Bucket.getBucketIndex(len, readBuffer[pos], readBuffer[pos + 1]);
             }
 
             if (index >= lower && index <= upper) {

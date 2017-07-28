@@ -3,19 +3,35 @@ package com.alibaba.middleware.topkn.core;
 import com.alibaba.middleware.topkn.Constants;
 
 import java.nio.ByteBuffer;
+import java.util.HashMap;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
 /**
  * Created by Shunjie Ding on 27/07/2017.
  */
-public class Buckets {
-    private static Buckets instance = new Buckets();
+public class Bucket {
+    private static Bucket global = new Bucket();
+    private static HashMap<Object, Bucket> bucketPool = new HashMap<>();
     private AtomicIntegerArray bucketCounts = new AtomicIntegerArray(Constants.BUCKET_SIZE);
 
-    private Buckets() {}
+    public Bucket() {}
 
-    public static Buckets getInstance() {
-        return instance;
+    public static Bucket getGlobal() {
+        return global;
+    }
+
+    public static Bucket allocate(Object o) {
+        if (bucketPool.containsKey(o)) {
+            return bucketPool.get(o);
+        } else {
+            Bucket bucket = new Bucket();
+            bucketPool.put(o, bucket);
+            return bucket;
+        }
+    }
+
+    public static Bucket getFromPool(Object o) {
+        return bucketPool.get(o);
     }
 
     private static int getByteIndex(byte b) {
@@ -45,6 +61,19 @@ public class Buckets {
         for (int i = 0; i < bucketCounts.length(); ++i) {
             int c = buffer.getInt();
             bucketCounts.set(i, c);
+        }
+    }
+
+    public int[] getRangeSums() {
+        int[] rangeSums = new int[Constants.BUCKET_SIZE];
+        getRangeSums(rangeSums);
+        return rangeSums;
+    }
+
+    public void getRangeSums(int[] rangeSums) {
+        rangeSums[0] = bucketCounts.get(0);
+        for (int i = 1; i < Constants.BUCKET_SIZE; ++i) {
+            rangeSums[i] = rangeSums[i - 1] + bucketCounts.get(i);
         }
     }
 
