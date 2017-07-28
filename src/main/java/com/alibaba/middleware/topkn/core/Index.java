@@ -89,7 +89,7 @@ public class Index {
     }
 
     public int BinarySearch(int k) {
-        int start = 0, end = 0;
+        int start = 0, end = Constants.BUCKET_SIZE - 1;
         while (start < end) {
             int mid = (start + end) / 2;
             if (bucketRangeSums[mid] < k) {

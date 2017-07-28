@@ -17,7 +17,7 @@ public class FileUtils {
             File[] fileList = dirFile.listFiles(new FilenameFilter() {
                 @Override
                 public boolean accept(File dir, String name) {
-                    return name.endsWith(".txt");
+                    return name.matches("split(\\d+).txt");
                 }
             });
             if (fileList == null) {

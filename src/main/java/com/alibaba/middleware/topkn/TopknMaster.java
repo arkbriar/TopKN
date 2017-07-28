@@ -6,6 +6,8 @@ import com.alibaba.middleware.topkn.core.StringComparator;
 import com.alibaba.middleware.topkn.utils.Logger;
 import com.alibaba.middleware.topkn.utils.LoggerFactory;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
@@ -26,13 +28,11 @@ public class TopknMaster implements Runnable {
     private static final CountDownLatch waitingBucketLatch = new CountDownLatch(Constants.NUM_WORKERS);
     private static final CountDownLatch buildingIndexLatch = new CountDownLatch(1);
     private static final CountDownLatch waitingResultLatch = new CountDownLatch(Constants.NUM_WORKERS);
+    private static final List<String> results = new ArrayList<>();
     private static boolean indexBuilt = false;
     private static Index index;
     private static long k;
     private static int n;
-
-    private static List<String> results = new ArrayList<>();
-
     private SocketChannel socketChannel;
     private int port;
     private Bucket bucket = Bucket.allocate(this);
@@ -59,13 +59,18 @@ public class TopknMaster implements Runnable {
 
         logger.info("Starting top(k, n) with k = %d and n = %d...", k, n);
 
-        logger.info("Reading index file from %s..." + Constants.MIDDLE_DIR + "/index.bin");
+        logger.info("Reading index file from %s...", Constants.MIDDLE_DIR + "/index.bin");
         index = Index.readFromFile(Constants.MIDDLE_DIR + "/index.bin");
         if (index != null) {
             indexBuilt = true;
             buildingIndexLatch.countDown();
+            logger.info("Index is valid when %d == 160000000.",
+                index.getRangeSum(Constants.BUCKET_SIZE - 1));
         }
 
+        // Each TopknMaster will take care of sending requests and read replies
+        // Synchronization is achieved by using CountDownLatch (index building, result reading)
+        // and synchronize keyword (result gathering)
         List<TopknMaster> masters = new ArrayList<>(Constants.NUM_WORKERS);
         ExecutorService executorService = Executors.newFixedThreadPool(Constants.NUM_WORKERS);
         for (int i = 0; i < Constants.NUM_WORKERS; ++i) {
@@ -74,34 +79,45 @@ public class TopknMaster implements Runnable {
             executorService.submit(master);
         }
 
-        // build index if not found
+        // Build index if not found
         if (!indexBuilt) {
-            logger.info("Waiting workers to build index...");
+            logger.info("Waiting workers to get buckets...");
             waitingBucketLatch.await();
+            logger.info("Building index...");
             index = buildIndexAndSave(masters);
+            buildingIndexLatch.countDown();
             logger.info("Index built!");
         }
 
+        int lower = index.BinarySearch((int) (k + 1)),
+            upper = index.BinarySearch((int) (k + n));
+        logger.info("Results are lied in bucket %d to %d, start querying...", lower, upper);
         logger.info("Waiting for candidates...");
         waitingResultLatch.await();
 
         logger.info("Get candidates, sorting...");
         Collections.sort(results, new StringComparator());
 
-        // should persist to some file, but I log them to stdout
-        logger.info("Get results, logging to stdout!");
-        int lower = index.BinarySearch((int) (k + 1));
-        int startIndex = (int) (k - index.getRangeSum(lower - 1)) + 1;
-        for (int i = startIndex; i < startIndex + n; ++i) {
-            logger.info(results.get(i));
+        // Persist to res.txt
+        File file = new File(Constants.RESULT_DIR + "/res.txt");
+        logger.info("Get results, writing to %s...", file.getAbsolutePath());
+
+        if (!file.exists()) file.createNewFile();
+        try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {
+            int startIndex = (int) (k - index.getRangeSum(lower - 1));
+            for (int i = startIndex; i < startIndex + n; ++i) {
+                fileOutputStream.write(results.get(i).getBytes());
+                fileOutputStream.write('\n');
+            }
         }
+        logger.info("Result's written, done!");
     }
 
     private void listenAndSetSocketChannel() throws IOException {
         ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
         serverSocketChannel.bind(new InetSocketAddress(port));
 
-        // we need just one connection for a port
+        // We need just one connection for a port
         socketChannel = serverSocketChannel.accept();
         serverSocketChannel.close();
     }
@@ -125,8 +141,15 @@ public class TopknMaster implements Runnable {
         ByteBuffer readBuffer = ByteBuffer.allocate(Constants.READ_BUFFER_SIZE);
         readBuffer.limit(4 * Constants.BUCKET_SIZE);
 
-        socketChannel.read(readBuffer);
+        int readSize = 0;
+        while (readSize < 4 * Constants.BUCKET_SIZE) {
+            readSize += socketChannel.read(readBuffer);
+        }
+        readBuffer.flip();
+
+        logger.info("Restoring bucket...");
         bucket.readFromBuffer(readBuffer);
+        logger.info("Bucket restored...");
     }
 
     private void requestAndReadBucket() throws IOException {
@@ -146,35 +169,33 @@ public class TopknMaster implements Runnable {
         }
     }
 
-    // save to static field results
+    // Save to static field results
     private void readResults() throws IOException {
         ByteBuffer readBuffer = ByteBuffer.allocate(Constants.RESULT_BUFFER_SIZE);
         readBuffer.limit(4);
-        socketChannel.read(readBuffer);
+        int x = socketChannel.read(readBuffer);
+        readBuffer.flip();
         int size = readBuffer.getInt();
         readBuffer.clear();
 
+        logger.info("Reading result from worker, size to read %d...", size);
         int readSize = 0;
+        readBuffer.limit(size);
         while (readSize < size) {
-            if (size - readSize > Constants.READ_BUFFER_SIZE) {
-                readBuffer.clear();
-            } else {
-                readBuffer.limit(size - readSize);
-            }
             readSize += socketChannel.read(readBuffer);
-            readBuffer.flip();
+        }
+        readBuffer.flip();
 
-            // process this buffer
-            byte[] buffer = readBuffer.array();
-            int pos = 0;
-            while (pos < readBuffer.limit()) {
-                int endPos = pos + 1;
-                while (buffer[endPos] != '\n') { endPos++; }
-                synchronized (results) {
-                    results.add(new String(buffer, pos, endPos - pos));
-                }
-                pos = endPos + 1;
+        // Process this buffer
+        byte[] buffer = readBuffer.array();
+        int pos = 0;
+        while (pos < readBuffer.limit()) {
+            int endPos = pos + 1;
+            while (buffer[endPos] != '\n') { endPos++; }
+            synchronized (results) {
+                results.add(new String(buffer, pos, endPos - pos));
             }
+            pos = endPos + 1;
         }
     }
 

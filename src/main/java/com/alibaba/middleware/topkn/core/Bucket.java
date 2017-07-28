@@ -1,6 +1,8 @@
 package com.alibaba.middleware.topkn.core;
 
 import com.alibaba.middleware.topkn.Constants;
+import com.alibaba.middleware.topkn.utils.Logger;
+import com.alibaba.middleware.topkn.utils.LoggerFactory;
 
 import java.nio.ByteBuffer;
 import java.util.HashMap;
@@ -10,11 +12,13 @@ import java.util.concurrent.atomic.AtomicIntegerArray;
  * Created by Shunjie Ding on 27/07/2017.
  */
 public class Bucket {
+    private static final Logger logger = LoggerFactory.getLogger(Bucket.class);
+
     private static Bucket global = new Bucket();
     private static HashMap<Object, Bucket> bucketPool = new HashMap<>();
     private AtomicIntegerArray bucketCounts = new AtomicIntegerArray(Constants.BUCKET_SIZE);
 
-    public Bucket() {}
+    private Bucket() {}
 
     public static Bucket getGlobal() {
         return global;
@@ -59,6 +63,7 @@ public class Bucket {
 
     public void readFromBuffer(ByteBuffer buffer) {
         for (int i = 0; i < bucketCounts.length(); ++i) {
+            // logger.info("%d", i);
             int c = buffer.getInt();
             bucketCounts.set(i, c);
         }

@@ -50,13 +50,13 @@ public class TopknWorker {
                 logger.info("Connecting to master at " + masterHost + ":" + masterPort);
                 connect();
 
-                // listen requests and respond
+                // Listen requests and respond
                 listen();
 
                 close();
                 return;
             } catch (ConnectException e) {
-                // reconnect on ConnectException
+                // Reconnect on ConnectException
                 Thread.sleep(15);
             }
         }
@@ -109,22 +109,23 @@ public class TopknWorker {
     }
 
     private void queryRangeAndSend(int lower, int upper) throws IOException, InterruptedException {
-        ByteBuffer readWriteBuffer = ByteBuffer.allocate(Constants.RESULT_BUFFER_SIZE);
+        ByteBuffer writeBuffer = ByteBuffer.allocate(Constants.RESULT_BUFFER_SIZE);
 
         logger.info("Get query request from master in [%d, %d], start querying...", lower, upper);
 
-        // query and send results
-        readWriteBuffer.putInt(0);
-        queryRange(lower, upper, readWriteBuffer);
+        // Query and send results
+        writeBuffer.putInt(0);
+        queryRange(lower, upper, writeBuffer);
 
-        logger.info("Query done! Sending...");
-        readWriteBuffer.flip();
-        // write the size
-        readWriteBuffer.putInt(readWriteBuffer.limit() - 4);
-        readWriteBuffer.position(0);
-        while (readWriteBuffer.hasRemaining()) {
-            socketChannel.write(readWriteBuffer);
+        writeBuffer.flip();
+        // Write the size
+        writeBuffer.putInt(writeBuffer.limit() - 4);
+        writeBuffer.position(0);
+        logger.info("Query done! Sending result to master: total size %d...", writeBuffer.limit() - 4);
+        while (writeBuffer.hasRemaining()) {
+            socketChannel.write(writeBuffer);
         }
+        logger.info("Results sent!");
     }
 
     private void queryRange(int lower, int upper, ByteBuffer resultBuffer)
@@ -168,17 +169,23 @@ public class TopknWorker {
 
                     if (op == Constants.OP_INDEX) {
                         buildIndexAndSend();
+                        logger.info("Bucket total size is %d.",
+                            Bucket.getGlobal().getRangeSums()[Constants.BUCKET_SIZE - 1]);
                     } else if (op == Constants.OP_QUERY) {
                         readBuffer.clear();
                         // read the values
                         readBuffer.limit(8);
                         socketChannel.read(readBuffer);
+                        readBuffer.flip();
+
                         int lower = readBuffer.getInt(), upper = readBuffer.getInt();
 
                         queryRangeAndSend(lower, upper);
-                        // exit once result's sent
-                        return;
                     }
+
+                    // Prepare for next op code
+                    readBuffer.clear();
+                    readBuffer.limit(4);
                 }
             } catch (IOException e) {
                 e.printStackTrace();
