@@ -90,7 +90,7 @@ public class Index {
         }
     }
 
-    public int BinarySearch(int k) {
+    public int binarySearch(int k) {
         int start = 0, end = Constants.BUCKET_SIZE - 1;
         while (start < end) {
             int mid = (start + end) / 2;

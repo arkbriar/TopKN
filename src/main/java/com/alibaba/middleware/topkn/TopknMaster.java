@@ -91,7 +91,7 @@ public class TopknMaster implements Runnable {
             logger.info("Index built!");
         }
 
-        int lower = index.BinarySearch((int) (k + 1)), upper = index.BinarySearch((int) (k + n));
+        int lower = index.binarySearch((int) (k + 1)), upper = index.binarySearch((int) (k + n));
         logger.info("Results are lied in bucket %d to %d, start querying...", lower, upper);
         logger.info("Waiting for candidates...");
         waitingResultLatch.await();
@@ -217,8 +217,8 @@ public class TopknMaster implements Runnable {
                 buildingIndexLatch.await();
             }
 
-            int lower = index.BinarySearch((int) (k + 1));
-            int upper = index.BinarySearch((int) (k + n));
+            int lower = index.binarySearch((int) (k + 1));
+            int upper = index.binarySearch((int) (k + n));
 
             requestRangeQueryAndReadResult(lower, upper);
             waitingResultLatch.countDown();
